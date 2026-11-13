@@ -1,7 +1,7 @@
 # Thermora: what the frontend needs from the backend
 
-*Frontend team (Zorgons) · Fri 13 Nov, 16:50 Cairo*
-*Companion to `API_CONTRACT.md`, which has the exact JSON shapes and C# DTOs. This file explains **what each piece powers, why it matters, how to compute it, and when we need it.***
+*Frontend team (Zorgons)*
+*Companion to `API_CONTRACT.md`, which has the exact JSON shapes and C# DTOs. This file lists **what each piece powers and how to compute it.***
 
 ---
 
@@ -15,21 +15,9 @@ The app is **finished on sample data**. Every screen below already works; it jus
 | **P1** | Core of the story; judges will look here | `/regions/{id}/summary`, `/progress`, `/daily` |
 | **P2** | Nice to have; we already compute fallbacks | `/day`, `/regions`, `/summary`, `/meta` |
 
-**Deadlines** (they follow the team's 24-hour plan):
-
-| When | What we need |
-|---|---|
-| **Fri 18:00** | Answers to the decisions in section 1 |
-| **Fri 22:00** | `/cells` for all years (P0) |
-| **Sat 00:00** | `/regions/{id}/summary` and `/progress` |
-| **Sat 02:00** | `/daily`; frontend switches to real data |
-| **Sat 09:00** | Feature freeze; numbers no longer change |
-
-If any deadline slips, tell us. Each endpoint can land independently, and the rest keeps running on mock data.
-
 ---
 
-## 1. Decisions first (blocking everything)
+## 1. Decisions we need first
 
 | # | Question | Why we need it | Our default if you don't answer |
 |---|---|---|---|
@@ -48,8 +36,6 @@ If any deadline slips, tell us. Each endpoint can land independently, and the re
 ## 2. Globe: the fires on the planet · `GET /cells` · **P0**
 
 **What the user sees:** the 3D Earth with glowing fire points. In **Human or natural** mode (the default view), each point is colored from ice blue (likely natural) to magenta (likely human-driven). In **Harmonized** mode, points get bigger and brighter when harmonization adds the fires MODIS missed. The **spectrum** at the bottom is a histogram of all fires by human likelihood, with handles that filter the globe live. The **year timeline** plays 2001→2025.
-
-**Why it matters:** this is the first thing judges see (Impact, Creativity), and it's the core twist: *human or natural?*
 
 **What we need per row (one row per grid cell, per year):**
 
@@ -74,8 +60,6 @@ If any deadline slips, tell us. Each endpoint can land independently, and the re
 - **Q2 "Human or natural?"**: human score before vs after correction, plus the **weekly rhythm chart** (Mon–Sun bars vs the weekly mean; a weekend dip is the human fingerprint).
 - **Q3 "Does the trend hold after correction?"**: yearly trend, raw vs corrected, with an uncertainty band and a verdict badge.
 
-**Why it matters:** this is the **Validity** criterion. These are the three results in the project guideline, so they must be the data scientist's real numbers.
-
 | Field | Meaning / how to compute |
 |---|---|
 | `undercountPct`, `undercountCi` | Σharmonized vs Σlegacy for the region and year; CI from your correction model (bootstrap is fine) |
@@ -94,8 +78,6 @@ If any deadline slips, tell us. Each endpoint can land independently, and the re
 
 **What the user sees:** in a region or a picked place, the *Progress* tab shows a bar from the early-2000s average to the recent average, the % change ("+57%, getting worse"), a yearly sparkline (harmonized solid, legacy faint), and the area's human likelihood.
 
-**Why it matters:** the team asked for a "how much worse has it been getting since 2000" view. It answers *is fire increasing here, and is it human?* (Impact).
-
 | Field | How to compute |
 |---|---|
 | `series[]` | for every year, the target's total legacy and harmonized fires |
@@ -111,8 +93,6 @@ The **target** is `?region=<id>` **or** `?lat=&lng=&radiusKm=` (see section 6).
 ## 5. Calendar and comparing days · `GET /daily` (P1) and `GET /day` (P2)
 
 **What the user sees:** the *Calendar* tab shows a month-grid calendar where each day is shaded by fire count. Click a day to get a day card: fires, weekday or weekend, vs the year's average, vs the average for that weekday, its rank in the year ("8th busiest day of 2019"), and the area's human likelihood. Users can pin up to 3 days to compare side by side, for example a weekday against a weekend.
-
-**Why it matters:** it makes the weekly human rhythm tangible. You can *see* weekends going quiet in crop-burning regions.
 
 | Endpoint | What | How to compute |
 |---|---|---|
@@ -137,7 +117,7 @@ The **target** is `?region=<id>` **or** `?lat=&lng=&radiusKm=` (see section 6).
 | `/regions` | region names, one-line blurbs, real analysis boundaries | built-in placeholders + country outlines |
 | `/meta` | the Methods panel: years, data version, sources (MODIS C6.1, VIIRS 375 m) | static text |
 
-Only build these if P0/P1 are done. They keep the numbers consistent with your slides.
+Build these after P0/P1. They keep the numbers consistent with your slides.
 
 ---
 

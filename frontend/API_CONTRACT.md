@@ -1,8 +1,8 @@
 # Thermora — API contract (frontend ⇄ backend)
 
-**Read first: `BACKEND_WANTS.md` (what each endpoint powers, priorities, deadlines).**
+**Read first: `BACKEND_WANTS.md` (what each endpoint powers, and priorities).**
 
-**Status (Fri 16:40):** the frontend is finished against mock data with exactly these shapes. When the backend serves them, we set `VITE_API_URL=<your base URL>` and **nothing else in the UI changes**. Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
+**Status:** the frontend is finished against mock data with exactly these shapes. When the backend serves them, we set `VITE_API_URL=<your base URL>` and **nothing else in the UI changes**. Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
 
 Backend team: the **decisions in section 1** block us. Please answer them at the bottom of this file or tell us directly.
 
