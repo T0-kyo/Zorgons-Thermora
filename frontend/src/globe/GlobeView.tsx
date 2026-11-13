@@ -209,14 +209,14 @@ export default function GlobeView() {
     const target = cameraTarget ?? (place ? { lat: place.lat, lng: place.lng, altitude: 0.6 } : null) ?? region?.center ?? GLOBAL_VIEW
     if (cameraTarget || place) {
       g.controls().autoRotate = false
-      swoopTo(g, target, cameraTarget?.ms ?? 2400)
+      swoopTo(g, target, cameraTarget?.ms ?? 2400, { cinematic: useApp.getState().touring })
     } else if (region) {
       setDrift(g, true) // slow cinematic orbit around the region
-      swoopTo(g, target, 2600)
+      swoopTo(g, target, 2600, { cinematic: useApp.getState().touring })
     } else {
       setDrift(g, false)
       g.controls().autoRotate = true
-      swoopTo(g, target, 2200)
+      swoopTo(g, target, 2200, { cinematic: useApp.getState().touring })
     }
   }, [regionId, cameraTarget, place])
 

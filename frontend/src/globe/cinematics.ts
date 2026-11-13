@@ -33,20 +33,42 @@ function midpoint(a: View, b: View) {
   return { lat: (a.lat + b.lat) / 2, lng: wrapLng(a.lng + dl / 2), dist: Math.hypot(b.lat - a.lat, dl) }
 }
 
+/**
+ * Familiarity: the first flight is fully cinematic; every next one is quicker and arcs less,
+ * until it's a fast, direct glide (no zoom-out). Resets after a few idle minutes.
+ * The guided tour (demo video) always gets the full cinematic version.
+ */
+let flights = 0
+let lastFlight = 0
+const RESET_AFTER_MS = 3 * 60_000
+function familiarity(cinematic: boolean) {
+  const now = performance.now()
+  if (now - lastFlight > RESET_AFTER_MS) flights = 0
+  lastFlight = now
+  if (cinematic) return { speed: 1, arc: 1 }
+  const n = flights++
+  return {
+    speed: Math.max(0.28, Math.pow(0.7, n)), // 1, .70, .49, .34, .28 …
+    arc: Math.max(0, 1 - n * 0.4), // full arc, 60%, 20%, then none
+  }
+}
+
 /** Pull back, arc over the planet, dive into the target. Short hops stay a single glide. */
-export function swoopTo(g: GlobeMethods, target: View, ms = 2600) {
+export function swoopTo(g: GlobeMethods, target: View, ms = 2600, opts: { cinematic?: boolean } = {}) {
   clearTimers()
+  const { speed, arc } = familiarity(!!opts.cinematic)
+  const dur = Math.max(600, ms * speed)
   const t = fitAltitude(target)
   const cur = g.pointOfView() as View
   const m = midpoint(cur, t)
-  if (m.dist < 25) {
-    g.pointOfView(t, ms * 0.7)
+  const lift = Math.min(1.6, 0.5 + m.dist / 120) * arc // farther hops climb higher, less once familiar
+  if (m.dist < 25 || lift < 0.15) {
+    g.pointOfView(t, dur * 0.75)
     return
   }
-  const lift = Math.min(1.6, 0.5 + m.dist / 120) // farther hops climb higher
   const apex = { lat: m.lat, lng: m.lng, altitude: Math.max(cur.altitude, t.altitude) + lift }
-  g.pointOfView(apex, ms * 0.45)
-  timers.push(window.setTimeout(() => g.pointOfView(t, ms * 0.55), ms * 0.45))
+  g.pointOfView(apex, dur * 0.45)
+  timers.push(window.setTimeout(() => g.pointOfView(t, dur * 0.55), dur * 0.45))
 }
 
 /** Open from deep space on the night side, then glide into daylight at the final view. */
