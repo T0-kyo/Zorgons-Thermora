@@ -69,12 +69,7 @@ export function HumanHero({ value, legacy, size = 'text-[40px]' }: { value: numb
           }
         />
       </div>
-      {legacy != null && Math.abs(value - legacy) >= 0.005 && (
-        <p className="mt-2 text-[12.5px] text-dim">
-          The corrected record moves it from <span className="font-mono text-text">{legacy.toFixed(2)}</span> to{' '}
-          <span className="font-mono text-text">{value.toFixed(2)}</span>.
-        </p>
-      )}
+
     </div>
   )
 }

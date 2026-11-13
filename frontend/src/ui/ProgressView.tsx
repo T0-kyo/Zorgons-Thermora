@@ -105,6 +105,16 @@ export default function ProgressView({ target }: { target: Target }) {
         </div>
       )}
 
+      {human && (
+        <div className="flex items-baseline gap-2 text-[13.5px]">
+          <span className="text-dim">Fire activity since {p.years.first}</span>
+          <span className={`font-mono ${d.cls}`}>
+            {c.pct >= 0 ? '+' : '−'}
+            {Math.abs(c.pct).toFixed(0)}%
+          </span>
+          <span className={d.cls}>{d.words.toLowerCase()}</span>
+        </div>
+      )}
       <ChangeBar baseline={c.baseline} recent={c.recent} direction={c.direction} first={p.years.first} last={p.years.last} />
 
       <div>

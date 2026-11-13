@@ -29,14 +29,23 @@ export function HumanScale({ markers = [], compact = false }: { markers?: Marker
             title={`${m.label}: ${m.value.toFixed(2)}`}
           >
             <div className={`mx-[-1px] h-full w-0.5 rounded ${TONE[m.tone]}`} />
-            {!compact && <div className="absolute top-full mt-0.5 -translate-x-1/2 text-[11px] text-dim">{m.label}</div>}
           </div>
         ))}
       </div>
-      <div className={`flex justify-between text-[12px] text-dim ${!compact && markers.length ? 'mt-4' : 'mt-1'}`}>
+      <div className="mt-1.5 flex justify-between text-[12px] text-dim">
         <span className="text-cyan">Likely natural</span>
         <span className="text-missed">Likely human-driven</span>
       </div>
+      {!compact && markers.length > 1 && (
+        <div className="mt-1 flex flex-wrap gap-x-4 text-[12px] text-dim">
+          {markers.map((m) => (
+            <span key={m.label} className="inline-flex items-center gap-1.5">
+              <span className={`inline-block h-3 w-0.5 rounded ${TONE[m.tone]}`} />
+              {m.label} <span className="font-mono text-text">{m.value.toFixed(2)}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -62,7 +62,7 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
       </div>
 
       <div className={`shrink-0 text-right ${compact ? 'w-14' : 'w-28'}`}>
-        <div className="readout text-[24px] text-cyan">{year}</div>
+        <div className={`readout text-cyan ${compact ? 'text-[19px]' : 'text-[24px]'}`}>{year}</div>
         {!compact && <div className="label mt-0.5">{year < 2012 ? 'MODIS only' : 'MODIS and VIIRS'}</div>}
       </div>
     </footer>

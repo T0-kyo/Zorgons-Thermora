@@ -5,7 +5,7 @@
  * region, as a collapsible section inside the Progress view.
  */
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
 import HumanGauge from '../charts/HumanGauge'
@@ -96,22 +96,23 @@ export function PanelBody({ compact = false }: { compact?: boolean }) {
   )
 }
 
-/** Desktop right-hand panel. */
+/**
+ * Desktop right-hand panel. The new content slides in at once (no waiting for an exit
+ * animation): during a camera fly-to a weak GPU can stall animations, and the panel must
+ * never disappear for the length of the flight.
+ */
 export default function SpotlightPanel() {
   const target = useTarget()
   const key = target ? targetKey(target) : 'global'
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.aside
-        key={key}
-        initial={{ opacity: 0, x: 28 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 28 }}
-        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-        className="panel pointer-events-auto max-h-full w-[380px] shrink-0 overflow-y-auto p-4 [scrollbar-width:thin]"
-      >
-        <PanelBody />
-      </motion.aside>
-    </AnimatePresence>
+    <motion.aside
+      key={key}
+      initial={{ opacity: 0.4, x: 18 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      className="panel pointer-events-auto max-h-full w-[380px] shrink-0 overflow-y-auto p-4 [scrollbar-width:thin]"
+    >
+      <PanelBody />
+    </motion.aside>
   )
 }

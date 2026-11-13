@@ -86,7 +86,7 @@ export default function PlaceSearch({ autoFocus = false }: { autoFocus?: boolean
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKey}
-          placeholder="Search a place, e.g. Lahore or Kalimantan"
+          placeholder="Search a place, e.g. Punjab or Kalimantan"
           role="combobox"
           aria-expanded={showList}
           aria-controls={listId}
