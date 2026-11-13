@@ -32,7 +32,7 @@ const earthFragment = /* glsl */ `
     vec3 col = mix(lights + day * 0.015, dayLit, dayAmt);
     // thin twilight glow along the terminator
     float twi = exp(-pow(i / 0.045, 2.0));
-    col += vec3(1.0, 0.42, 0.14) * twi * 0.035;
+    col += vec3(1.0, 0.42, 0.14) * twi * 0.015;
     gl_FragColor = vec4(col, 1.0);
     #include <colorspace_fragment>
   }
