@@ -25,12 +25,12 @@ import type { FireCell, Mode } from '../shared/types'
 import { YEARS } from '../shared/types'
 import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
 import { FireGlow } from './FireGlow'
+import { fitAltitude, setDrift, sunriseIntro, swoopTo } from './cinematics'
 
 /** 'glow' = flickering ember points (default, one draw call). 'hex' = 3D hex columns (fallback). */
 const FIRE_STYLE: 'glow' | 'hex' = 'glow'
 
 const GLOBAL_VIEW = { lat: 18, lng: 20, altitude: 2.5 }
-const INTRO_VIEW = { lat: 30, lng: -10, altitude: 4.2 }
 const RES_GLOBAL = 2
 const RES_REGION = 3
 const MAX_HEX_ALT = { global: 0.07, region: 0.09 }
@@ -184,9 +184,18 @@ export default function GlobeView() {
     const g = ref.current
     if (!g) return
     const region = regionById(regionId)
-    g.controls().autoRotate = !region && !cameraTarget
     const target = cameraTarget ?? region?.center ?? GLOBAL_VIEW
-    g.pointOfView(target, cameraTarget?.ms ?? 1600)
+    if (cameraTarget) {
+      g.controls().autoRotate = false
+      swoopTo(g, target, cameraTarget.ms ?? 2600)
+    } else if (region) {
+      setDrift(g, true) // slow cinematic orbit around the region
+      swoopTo(g, target, 2600)
+    } else {
+      setDrift(g, false)
+      g.controls().autoRotate = true
+      swoopTo(g, target, 2200)
+    }
   }, [regionId, cameraTarget])
 
   const onReady = useCallback(() => {
@@ -205,9 +214,14 @@ export default function GlobeView() {
     controls.addEventListener('start', () => {
       const st = useApp.getState()
       if (st.touring) st.stopTour()
+      if (st.regionId) controls.autoRotate = false // user took the camera: stop the drift
     })
-    g.pointOfView(INTRO_VIEW, 0)
-    setTimeout(() => g.pointOfView(regionById(useApp.getState().regionId)?.center ?? GLOBAL_VIEW, 2600), 150)
+    // cinematic intro: deep space on the night side, glide over the terminator into daylight
+    sunriseIntro(g, sunPosition(), regionById(useApp.getState().regionId)?.center ?? GLOBAL_VIEW)
+    window.addEventListener('resize', () => {
+      const st = useApp.getState()
+      g.pointOfView(fitAltitude(regionById(st.regionId)?.center ?? GLOBAL_VIEW), 400)
+    })
 
     // live sun
     const updateSun = () => {

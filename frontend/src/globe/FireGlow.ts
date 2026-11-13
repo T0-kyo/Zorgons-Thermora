@@ -23,6 +23,7 @@ const vertex = /* glsl */ `
   uniform float uTime;
   uniform float uFocus;
   uniform float uPixelRatio;
+  uniform float uFlare;
   varying float vI;
   varying float vDim;
   void main() {
@@ -31,10 +32,11 @@ const vertex = /* glsl */ `
     float flick = 0.82 + 0.18 * sin(uTime * (2.5 + aSeed * 5.0) + aSeed * 50.0)
                        * sin(uTime * (1.3 + aSeed * 2.0) + aSeed * 17.0);
     float dim = (uFocus < 0.0 || abs(aRegion - uFocus) < 0.5) ? 1.0 : 0.18;
-    vI = val * flick;
+    float flare = 1.0 + uFlare * (0.7 + 0.6 * aSeed);
+    vI = val * flick * flare;
     vDim = dim;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = (1.5 + 30.0 * val) * flick * uPixelRatio * (320.0 / -mv.z);
+    gl_PointSize = (1.5 + 30.0 * val) * flick * (1.0 + uFlare * 0.55) * uPixelRatio * (320.0 / -mv.z);
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -78,6 +80,7 @@ export class FireGlow {
       uniforms: {
         uMix: { value: 0 },
         uDiff: { value: 0 },
+        uFlare: { value: 0 },
         uTime: { value: 0 },
         uFocus: { value: -1 },
         uPixelRatio: { value: Math.min(window.devicePixelRatio, 1.5) },
@@ -148,6 +151,8 @@ export class FireGlow {
   }
 
   setMode(mode: Mode) {
+    // TRIAL cinematic: a short flare when the record gains fires (legacy -> harmonized / missed)
+    if (mode !== 'legacy' && this.target.mix === 0) this.mat.uniforms.uFlare.value = 1
     this.target.mix = mode === 'legacy' ? 0 : 1
     this.target.diff = mode === 'difference' ? 1 : 0
   }
@@ -163,6 +168,7 @@ export class FireGlow {
     const ease = 1 - Math.exp(-dt * 4.5) // ~1s settle
     u.uMix.value += (this.target.mix - u.uMix.value) * ease
     u.uDiff.value += (this.target.diff - u.uDiff.value) * ease
+    u.uFlare.value *= Math.exp(-dt * 2.2)
     // year tween
     const { leg, har, dif } = this.cur
     if (leg.length === this.goal.leg.length && leg.length) {
