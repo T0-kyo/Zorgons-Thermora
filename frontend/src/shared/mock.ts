@@ -45,7 +45,7 @@ const P: Record<string, { undercount: number; human: number; weekly: number; slo
 // ---- geometry ------------------------------------------------------------
 let countriesP: Promise<FeatureCollection> | null = null
 const loadCountries = () =>
-  (countriesP ??= fetch('/data/countries.geojson').then((r) => r.json()))
+  (countriesP ??= fetch(`${import.meta.env.BASE_URL}data/countries.json`).then((r) => r.json()))
 
 export async function regionFeatures(regionId: string): Promise<Feature[]> {
   const fc = await loadCountries()

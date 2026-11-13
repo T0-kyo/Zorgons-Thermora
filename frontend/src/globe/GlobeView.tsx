@@ -150,7 +150,7 @@ export default function GlobeView() {
       height={size.h}
       animateIn={false}
       backgroundColor="#04060b"
-      backgroundImageUrl="/textures/night-sky.png"
+      backgroundImageUrl={`${import.meta.env.BASE_URL}textures/night-sky.png`}
       globeMaterial={earthMaterial}
       showAtmosphere
       atmosphereColor={C.cyan}

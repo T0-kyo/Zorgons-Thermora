@@ -65,8 +65,8 @@ const tex = (url: string) => {
 export function makeEarthMaterial(sunDir: THREE.Vector3) {
   return new THREE.ShaderMaterial({
     uniforms: {
-      dayTex: { value: tex('/textures/earth-blue-marble.jpg') },
-      nightTex: { value: tex('/textures/earth-night.jpg') },
+      dayTex: { value: tex(`${import.meta.env.BASE_URL}textures/earth-blue-marble.jpg`) },
+      nightTex: { value: tex(`${import.meta.env.BASE_URL}textures/earth-night.jpg`) },
       sunDir: { value: sunDir },
     },
     vertexShader: vertex,
@@ -77,7 +77,7 @@ export function makeEarthMaterial(sunDir: THREE.Vector3) {
 export function makeCloudMaterial(sunDir: THREE.Vector3) {
   return new THREE.ShaderMaterial({
     uniforms: {
-      cloudTex: { value: tex('/textures/clouds.png') },
+      cloudTex: { value: tex(`${import.meta.env.BASE_URL}textures/clouds.png`) },
       sunDir: { value: sunDir },
     },
     vertexShader: vertex,
