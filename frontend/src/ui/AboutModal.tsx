@@ -1,7 +1,7 @@
 /** OWNER: Agent B. B11 — About / Methods: sources, method summary, team, AI-use disclosure. */
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { USING_MOCK } from '../shared/api'
+import { anyMock, useDataStatus } from '../shared/dataStatus'
 import { useUi } from './uiStore'
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
@@ -14,6 +14,7 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export default function AboutModal() {
+  const mockShown = anyMock(useDataStatus((st) => st.sources))
   const open = useUi((s) => s.aboutOpen)
   const setAbout = useUi((s) => s.setAbout)
 
@@ -62,9 +63,9 @@ export default function AboutModal() {
               they tell the same story? Which regions are most affected?
             </p>
 
-            {USING_MOCK && (
+            {mockShown && (
               <p className="rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                This build shows mock data while the backend is being connected. The numbers are placeholders, not results.
+                Some or all numbers here are still sample data while the backend endpoints are being connected. Sample numbers are placeholders, not results.
               </p>
             )}
 

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
-import { USING_MOCK } from '../shared/api'
+import { anyMock, useDataStatus } from '../shared/dataStatus'
 import { sunPosition } from '../shared/sun'
 import type { Mode } from '../shared/types'
 import { useUi } from './uiStore'
@@ -75,14 +75,27 @@ export function UtcClock() {
   )
 }
 
+/** Honest data-source badge: sample, partly sample, or live (driven by the hybrid API layer). */
 export function MockBadge() {
-  if (!USING_MOCK) return null
+  const backend = useDataStatus((s) => s.backend)
+  const sources = useDataStatus((s) => s.sources)
+  const mock = anyMock(sources)
+  const real = Object.values(sources).filter((v) => v === 'real').length
+  if (!mock) {
+    return (
+      <span title="All numbers on screen come from the team's backend" className="rounded border border-ok/40 bg-ok/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-ok">
+        Live data
+      </span>
+    )
+  }
+  const partly = backend === 'up' && real > 0
+  const title =
+    backend === 'down' ? 'The backend is unreachable, so all numbers are placeholders'
+    : backend === 'up' ? 'Backend connected. Endpoints that are not ready yet still show sample data'
+    : 'Numbers are placeholders until the backend is connected'
   return (
-    <span
-      title="Numbers are placeholders until the backend is connected"
-      className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn"
-    >
-      Sample data, not results
+    <span title={title} className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn">
+      {partly ? 'Partly sample data' : 'Sample data, not results'}
     </span>
   )
 }
