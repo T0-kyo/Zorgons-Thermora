@@ -74,7 +74,7 @@ async function regionLayout(regionId: string) {
   }
   const spread = Math.max(2, Math.min(9, lngSpan / 10))
   const cells: { lat: number; lng: number; w: number; small: number }[] = []
-  const target = Math.round(260 * (P[regionId]?.size ?? 0.5) + 80)
+  const target = Math.round(150 * (P[regionId]?.size ?? 0.5) + 50)
   for (let i = 0; cells.length < target && i < target * 30; i++) {
     const c = centres[Math.floor(r() * centres.length)]
     if (!c) break

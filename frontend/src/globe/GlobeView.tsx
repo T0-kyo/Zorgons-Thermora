@@ -2,11 +2,19 @@
  * OWNER: Agent A. Full-screen "real-time Earth".
  * - Day/night from the live sun position, city lights, drifting lit clouds, atmosphere
  * - Fire hexes from getCells(year); height/colour follow `mode`, animated on toggle
- * - Selected region: fly-to, glowing outline, other regions dimmed, pulsing rings on hottest cells
+ * - Selected region: fly-to, glowing outline, only that region's hexes, pulsing rings on hottest cells
+ *
+ * Performance notes (keep it smooth on weak laptops):
+ * - every hex is its own mesh → keep hex count low: coarse H3 res in global view,
+ *   and only the selected region's cells when zoomed in
+ * - opaque colours (no transparency sorting), pixel ratio capped at 1.5
+ * - accessors memoised so React re-renders don't re-aggregate the hex layer
+ * - rendering pauses when the tab is hidden
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import * as THREE from 'three'
+import { latLngToCell } from 'h3-js'
 import type { Feature } from 'geojson'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
@@ -18,21 +26,41 @@ import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
 
 const GLOBAL_VIEW = { lat: 18, lng: 20, altitude: 2.5 }
 const INTRO_VIEW = { lat: 30, lng: -10, altitude: 4.2 }
-const HEX_RES = 3
-const MAX_HEX_ALT = 0.09
+const RES_GLOBAL = 2
+const RES_REGION = 3
+const MAX_HEX_ALT = { global: 0.07, region: 0.09 }
 
 // token colours (keep in sync with index.css @theme)
-const C = { fire: [255, 106, 43], hot: [255, 214, 130], missed: [255, 61, 129], cyan: '#5ad1ff' }
+const C = { fire: [255, 106, 43], hot: [255, 214, 130], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#5ad1ff' }
 
 interface Hex {
   points: FireCell[]
   sumWeight: number
 }
 
-const weightFor = (mode: Mode) => (c: FireCell) =>
+const value = (mode: Mode, c: FireCell) =>
   mode === 'legacy' ? c.legacy : mode === 'harmonized' ? c.harmonized : c.harmonized - c.legacy
 
-const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
+const rgb = (a: number[], b: number[], t: number) =>
+  `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(',')})`
+
+/** Max hex sums at a resolution, so heights share one honest scale across legacy/harmonized. */
+function hexMaxima(cells: FireCell[], res: number) {
+  const h = new Map<string, { harm: number; diff: number }>()
+  for (const c of cells) {
+    const k = latLngToCell(c.lat, c.lng, res)
+    const e = h.get(k) ?? { harm: 0, diff: 0 }
+    e.harm += c.harmonized
+    e.diff += c.harmonized - c.legacy
+    h.set(k, e)
+  }
+  let harm = 1, diff = 1
+  for (const e of h.values()) {
+    harm = Math.max(harm, e.harm)
+    diff = Math.max(diff, e.diff)
+  }
+  return { abs: harm * 1.05, diff: diff * 1.05 }
+}
 
 export default function GlobeView() {
   const ref = useRef<GlobeMethods | undefined>(undefined)
@@ -40,7 +68,7 @@ export default function GlobeView() {
   const mode = useApp((s) => s.mode)
   const year = useApp((s) => s.year)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
-  const [cells, setCells] = useState<FireCell[]>([])
+  const [allCells, setAllCells] = useState<FireCell[]>([])
   const [outline, setOutline] = useState<Feature[]>([])
 
   // shared sun direction for earth + clouds shaders
@@ -48,15 +76,31 @@ export default function GlobeView() {
   const earthMaterial = useMemo(() => makeEarthMaterial(sunDir), [sunDir])
 
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
+    let t: number | undefined
+    const onResize = () => {
+      clearTimeout(t)
+      t = window.setTimeout(() => setSize({ w: window.innerWidth, h: window.innerHeight }), 120)
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // pause rendering when the tab is hidden
+  useEffect(() => {
+    const onVis = () => {
+      const g = ref.current
+      if (!g) return
+      if (document.hidden) g.pauseAnimation()
+      else g.resumeAnimation()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
   }, [])
 
   // ---- data ---------------------------------------------------------------
   useEffect(() => {
     let live = true
-    getCells(year).then((c) => live && setCells(c))
+    getCells(year).then((c) => live && setAllCells(c))
     return () => { live = false }
   }, [year])
 
@@ -67,17 +111,18 @@ export default function GlobeView() {
     return () => { live = false }
   }, [regionId])
 
-  // scale references so heights are comparable across modes (legacy vs harmonized share one scale)
-  const refs = useMemo(() => {
-    const maxH = Math.max(1, ...cells.map((c) => c.harmonized))
-    const maxD = Math.max(1, ...cells.map((c) => c.harmonized - c.legacy))
-    return { abs: maxH * 2.2, diff: maxD * 2.2 }
-  }, [cells])
+  const res = regionId ? RES_REGION : RES_GLOBAL
+  const maxAlt = regionId ? MAX_HEX_ALT.region : MAX_HEX_ALT.global
+  const cells = useMemo(
+    () => (regionId ? allCells.filter((c) => c.regionId === regionId) : allCells),
+    [allCells, regionId],
+  )
+  const refs = useMemo(() => hexMaxima(cells, res), [cells, res])
 
-  const hottest = useMemo(() => {
-    const pool = regionId ? cells.filter((c) => c.regionId === regionId) : cells
-    return [...pool].sort((a, b) => b.harmonized - a.harmonized).slice(0, regionId ? 6 : 10)
-  }, [cells, regionId])
+  const hottest = useMemo(
+    () => (regionId ? [...cells].sort((a, b) => b.harmonized - a.harmonized).slice(0, 5) : []),
+    [cells, regionId],
+  )
 
   // ---- camera -------------------------------------------------------------
   useEffect(() => {
@@ -88,13 +133,16 @@ export default function GlobeView() {
     g.pointOfView(region ? region.center : GLOBAL_VIEW, 1600)
   }, [regionId])
 
-  const onReady = () => {
+  const onReady = useCallback(() => {
     const g = ref.current
     if (!g) return
+    g.renderer().setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+
     const controls = g.controls()
     controls.autoRotate = true
     controls.autoRotateSpeed = 0.3
     controls.enableDamping = true
+    controls.dampingFactor = 0.08
     controls.minDistance = g.getGlobeRadius() * 1.25
     controls.maxDistance = g.getGlobeRadius() * 6
     g.pointOfView(INTRO_VIEW, 0)
@@ -109,39 +157,53 @@ export default function GlobeView() {
     updateSun()
     setInterval(updateSun, 30_000)
 
-    // clouds
+    // clouds (rotated in the scene's own render loop, no extra rAF)
     const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(g.getGlobeRadius() * 1.007, 96, 96),
+      new THREE.SphereGeometry(g.getGlobeRadius() * 1.007, 64, 48),
       makeCloudMaterial(sunDir),
     )
-    clouds.rotation.y = -Math.PI / 2 // align with three-globe texture mapping
+    clouds.rotation.y = -Math.PI / 2
+    clouds.onBeforeRender = () => { clouds.rotation.y += 0.00006 }
     g.scene().add(clouds)
-    const spin = () => {
-      clouds.rotation.y += 0.00006
-      requestAnimationFrame(spin)
-    }
-    spin()
-  }
+  }, [sunDir])
 
-  // ---- hex styling ----------------------------------------------------------
+  // ---- hex styling (memoised) ----------------------------------------------
   const isDiff = mode === 'difference'
-  // linear so the legacy→harmonized jump is honest and visible (same scale for both)
-  const norm = (h: Hex) => Math.min(1, Math.max(0, h.sumWeight) / (isDiff ? refs.diff : refs.abs))
-  const dimmed = (h: Hex) => regionId !== null && h.points[0]?.regionId !== regionId
-
-  const hexColor = (h: Hex) => {
-    const t = norm(h)
-    const rgb = isDiff
-      ? mix([150, 30, 80], C.missed, Math.sqrt(t))
-      : mix(C.fire, C.hot, Math.min(1, Math.sqrt(t) * (mode === 'harmonized' ? 1.35 : 0.9)))
-    const a = dimmed(h) ? 0.18 : 0.92
-    return `rgba(${rgb.join(',')},${a})`
-  }
-
-  const ringColor = () => {
+  const norm = useCallback(
+    (h: Hex) => Math.min(1, Math.max(0, h.sumWeight) / (isDiff ? refs.diff : refs.abs)),
+    [isDiff, refs],
+  )
+  const hexWeight = useCallback((d: object) => value(mode, d as FireCell), [mode])
+  // region view: linear (honest toggle jump). global view: sqrt so one hot hex doesn't flatten the rest
+  const hexAltitude = useCallback(
+    (d: object) => 0.003 + (regionId ? norm(d as Hex) : Math.sqrt(norm(d as Hex))) * maxAlt,
+    [norm, maxAlt, regionId],
+  )
+  const hexColor = useCallback(
+    (d: object) => {
+      const t = Math.sqrt(norm(d as Hex))
+      return isDiff
+        ? rgb(C.missedLo, C.missed, t)
+        : rgb(C.fire, C.hot, Math.min(1, t * (mode === 'harmonized' ? 1.3 : 0.9)))
+    },
+    [norm, isDiff, mode],
+  )
+  const hexLabel = useCallback((d: object) => {
+    const h = d as Hex
+    const leg = h.points.reduce((s, c) => s + c.legacy, 0)
+    const har = h.points.reduce((s, c) => s + c.harmonized, 0)
+    return `<div style="font:11px 'JetBrains Mono',monospace;background:rgba(10,15,26,.88);border:1px solid rgba(120,180,255,.2);padding:6px 8px;border-radius:4px;color:#e6edf7">
+      legacy ${leg.toLocaleString()}<br/>harmonized ${har.toLocaleString()}<br/>
+      <span style="color:#ff3d81">missed +${(har - leg).toLocaleString()}</span></div>`
+  }, [])
+  const ringColor = useCallback(() => {
     const [r, g, b] = isDiff ? C.missed : C.fire
     return (t: number) => `rgba(${r},${g},${b},${(1 - t) * 0.9})`
-  }
+  }, [isDiff])
+
+  const capColor = useCallback(() => 'rgba(90,209,255,0.04)', [])
+  const sideColor = useCallback(() => 'rgba(90,209,255,0.12)', [])
+  const strokeColor = useCallback(() => C.cyan, [])
 
   return (
     <Globe
@@ -149,6 +211,7 @@ export default function GlobeView() {
       width={size.w}
       height={size.h}
       animateIn={false}
+      rendererConfig={{ antialias: true, powerPreference: 'high-performance' }}
       backgroundColor="#04060b"
       backgroundImageUrl={`${import.meta.env.BASE_URL}textures/night-sky.png`}
       globeMaterial={earthMaterial}
@@ -158,35 +221,28 @@ export default function GlobeView() {
       onGlobeReady={onReady}
       // fire hexes
       hexBinPointsData={cells}
-      hexBinPointWeight={weightFor(mode) as (d: object) => number}
-      hexBinResolution={HEX_RES}
-      hexAltitude={(d) => 0.004 + norm(d as Hex) * MAX_HEX_ALT}
-      hexTopColor={(d) => hexColor(d as Hex)}
-      hexSideColor={(d) => hexColor(d as Hex)}
-      hexMargin={0.18}
+      hexBinPointWeight={hexWeight}
+      hexBinResolution={res}
+      hexAltitude={hexAltitude}
+      hexTopColor={hexColor}
+      hexSideColor={hexColor}
+      hexMargin={0.15}
       hexTransitionDuration={900}
-      hexLabel={(d) => {
-        const h = d as Hex
-        const leg = h.points.reduce((s, c) => s + c.legacy, 0)
-        const har = h.points.reduce((s, c) => s + c.harmonized, 0)
-        return `<div style="font:11px 'JetBrains Mono',monospace;background:rgba(10,15,26,.85);border:1px solid rgba(120,180,255,.2);padding:6px 8px;border-radius:4px;color:#e6edf7">
-          legacy ${leg.toLocaleString()}<br/>harmonized ${har.toLocaleString()}<br/>
-          <span style="color:#ff3d81">missed +${(har - leg).toLocaleString()}</span></div>`
-      }}
+      hexLabel={hexLabel}
       // selected region outline
       polygonsData={outline}
-      polygonAltitude={0.006}
-      polygonCapColor={() => 'rgba(90,209,255,0.05)'}
-      polygonSideColor={() => 'rgba(90,209,255,0.15)'}
-      polygonStrokeColor={() => C.cyan}
-      polygonsTransitionDuration={600}
-      // pulsing rings on hottest cells
+      polygonAltitude={0.004}
+      polygonCapColor={capColor}
+      polygonSideColor={sideColor}
+      polygonStrokeColor={strokeColor}
+      polygonsTransitionDuration={0}
+      // pulsing rings on hottest cells (region view only)
       ringsData={hottest}
       ringColor={ringColor}
-      ringMaxRadius={regionId ? 3.2 : 2.2}
+      ringMaxRadius={3}
       ringPropagationSpeed={1.6}
       ringRepeatPeriod={1100}
-      ringAltitude={0.008}
+      ringAltitude={0.006}
     />
   )
 }
