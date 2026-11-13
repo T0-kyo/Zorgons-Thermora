@@ -1,3 +1,4 @@
+using api.Repositories;
 using api.Middleware;
 using api.Services;
 using api.Config;
@@ -12,6 +13,7 @@ builder.Services.Configure<DataSettings>(
     builder.Configuration.GetSection(DataSettings.SectionName));
 
 builder.Services.AddSingleton<IDuckDbService, DuckDbService>();
+builder.Services.AddScoped<IDataRepository, DuckDbRepository>();
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
