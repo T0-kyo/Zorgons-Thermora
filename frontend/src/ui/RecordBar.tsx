@@ -29,12 +29,14 @@ const HERO: Record<Mode, { label: string; color: string; prefix: string }> = {
   legacy: { label: 'Fires in the legacy record (MODIS)', color: 'text-fire', prefix: '' },
   harmonized: { label: 'Fires after harmonization (MODIS + VIIRS)', color: 'text-cyan', prefix: '' },
   difference: { label: 'Fires the legacy record missed', color: 'text-missed', prefix: '+' },
+  // [A] added so the build stays green after the new 'human' mode; B may restyle (see TASKS B12)
+  human: { label: 'Fires in the corrected record', color: 'text-cyan', prefix: '' },
 }
 
 /** The big mode-dependent number: flipping the toggle visibly changes it. */
 export function HeroCount({ legacy, harmonized, mode, size = 'text-3xl' }: { legacy: number; harmonized: number; mode: Mode; size?: string }) {
   const h = HERO[mode]
-  const value = mode === 'legacy' ? legacy : mode === 'harmonized' ? harmonized : harmonized - legacy
+  const value = mode === 'legacy' ? legacy : mode === 'harmonized' || mode === 'human' ? harmonized : harmonized - legacy
   return (
     <div>
       <div className="label">{h.label}</div>

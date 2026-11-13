@@ -18,7 +18,7 @@ import { latLngToCell } from 'h3-js'
 import type { Feature } from 'geojson'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
-import { getCells } from '../shared/api'
+import { getCells, placeFromPoint } from '../shared/api'
 import { regionFeatures } from '../shared/mock'
 import { sunPosition } from '../shared/sun'
 import type { FireCell, Mode } from '../shared/types'
@@ -36,7 +36,7 @@ const RES_REGION = 3
 const MAX_HEX_ALT = { global: 0.07, region: 0.09 }
 
 // token colours (keep in sync with index.css @theme)
-const C = { fire: [255, 62, 18], hot: [255, 186, 96], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#8fd3e8' }
+const C = { fire: [255, 62, 18], hot: [255, 186, 96], missedLo: [150, 30, 80], missed: [255, 61, 129], natural: [143, 211, 232], cyan: '#8fd3e8' }
 
 interface Hex {
   points: FireCell[]
@@ -74,6 +74,7 @@ export default function GlobeView() {
   const year = useApp((s) => s.year)
   const playing = useApp((s) => s.playing)
   const cameraTarget = useApp((s) => s.cameraTarget)
+  const place = useApp((s) => s.place)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [allCells, setAllCells] = useState<FireCell[]>([])
   const [outline, setOutline] = useState<Feature[]>([])
@@ -184,10 +185,10 @@ export default function GlobeView() {
     const g = ref.current
     if (!g) return
     const region = regionById(regionId)
-    const target = cameraTarget ?? region?.center ?? GLOBAL_VIEW
-    if (cameraTarget) {
+    const target = cameraTarget ?? (place ? { lat: place.lat, lng: place.lng, altitude: 0.6 } : null) ?? region?.center ?? GLOBAL_VIEW
+    if (cameraTarget || place) {
       g.controls().autoRotate = false
-      swoopTo(g, target, cameraTarget.ms ?? 2600)
+      swoopTo(g, target, cameraTarget?.ms ?? 2400)
     } else if (region) {
       setDrift(g, true) // slow cinematic orbit around the region
       swoopTo(g, target, 2600)
@@ -196,7 +197,7 @@ export default function GlobeView() {
       g.controls().autoRotate = true
       swoopTo(g, target, 2200)
     }
-  }, [regionId, cameraTarget])
+  }, [regionId, cameraTarget, place])
 
   const onReady = useCallback(() => {
     const g = ref.current
@@ -274,10 +275,35 @@ export default function GlobeView() {
       legacy ${leg.toLocaleString()}<br/>harmonized ${har.toLocaleString()}<br/>
       <span style="color:#ff3d81">missed +${(har - leg).toLocaleString()}</span></div>`
   }, [])
-  const ringColor = useCallback(() => {
-    const [r, g, b] = isDiff ? C.missed : C.fire
+  const ringColor = useCallback((d: object) => {
+    if ((d as { isPlace?: boolean }).isPlace) return (t: number) => `rgba(143,211,232,${(1 - t) * 0.85})`
+    const [r, g, b] = isDiff || mode === 'human' ? C.missed : C.fire
     return (t: number) => `rgba(${r},${g},${b},${(1 - t) * 0.9})`
-  }, [isDiff])
+  }, [isDiff, mode])
+
+  // picked place: a cyan ring the size of its search radius + a label
+  const rings = useMemo(
+    () => (place ? [{ lat: place.lat, lng: place.lng, isPlace: true, maxR: place.radiusKm / 111 }, ...hottest] : hottest),
+    [place, hottest],
+  )
+  const ringRadius = useCallback((d: object) => (d as { maxR?: number }).maxR ?? 3, [])
+  // copies: globe.gl attaches three.js objects to data items, never hand it store objects
+  const placeLabels = useMemo(() => (place ? [{ name: place.name, lat: place.lat, lng: place.lng }] : []), [place])
+  const placeElement = useCallback((d: object) => {
+    const p = d as { name: string }
+    const el = document.createElement('div')
+    el.style.cssText =
+      "transform:translate(-50%,-100%);pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;font-family:'Archivo Variable',sans-serif;"
+    el.innerHTML = `<div style="font-stretch:88%;font-weight:600;font-size:13px;color:#ece6d8;background:rgba(9,11,15,.82);border:1px solid rgba(236,230,216,.18);padding:3px 8px;border-radius:3px;white-space:nowrap">${p.name.replace(/</g, '&lt;')}</div><div style="width:1px;height:14px;background:#8fd3e8"></div><div style="width:7px;height:7px;border-radius:50%;background:#8fd3e8;box-shadow:0 0 10px #8fd3e8"></div>`
+    return el
+  }, [])
+
+  // click the globe to pick a specific spot (sub-area of a region, or anywhere)
+  const onGlobeClick = useCallback(({ lat, lng }: { lat: number; lng: number }) => {
+    const st = useApp.getState()
+    if (st.touring) return
+    placeFromPoint(lat, lng).then((p) => useApp.getState().setPlace(p))
+  }, [])
 
   const capColor = useCallback(() => 'rgba(90,209,255,0.04)', [])
   const sideColor = useCallback(() => 'rgba(90,209,255,0.12)', [])
@@ -297,6 +323,11 @@ export default function GlobeView() {
       atmosphereColor="#5ab8ff"
       atmosphereAltitude={0.16}
       onGlobeReady={onReady}
+      onGlobeClick={onGlobeClick}
+      onPolygonClick={(_p: object, _e: MouseEvent, coords: { lat: number; lng: number }) => onGlobeClick(coords)}
+      htmlElementsData={placeLabels}
+      htmlElement={placeElement}
+      htmlAltitude={0.01}
       // fire hexes
       hexBinPointsData={FIRE_STYLE === 'hex' ? cells : []}
       hexBinPointWeight={hexWeight}
@@ -315,9 +346,9 @@ export default function GlobeView() {
       polygonStrokeColor={strokeColor}
       polygonsTransitionDuration={0}
       // pulsing rings on hottest cells (region view only)
-      ringsData={hottest}
+      ringsData={rings}
       ringColor={ringColor}
-      ringMaxRadius={3}
+      ringMaxRadius={ringRadius}
       ringPropagationSpeed={1.6}
       ringRepeatPeriod={1100}
       ringAltitude={0.006}

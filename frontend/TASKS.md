@@ -21,6 +21,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - 🟢 A7 Globe hooks for the tour — see Requests
 
 - 🟢 A9 Cinematic camera: sunrise intro, swoop fly-to, region drift, toggle flare
+- 🟢 A11 Human vs natural globe mode (`mode: 'human'`), click-to-pick place, place marker + fly-to, place search + data APIs (progress / daily / day)
 - 🟡 A10 Backend contract: `frontend/API_CONTRACT.md` (waiting on backend decisions), then swap `api.ts`
 - 🟢 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
 
@@ -37,6 +38,27 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - 🟡 B10 (branch: frontend/ui-agent-b) Mobile layout: bottom sheet for spotlight, chips for regions
 - 🟡 B11 (branch: frontend/ui-agent-b) About / Methods modal: data sources (NASA FIRMS MODIS + VIIRS), method summary, team, AI-use disclosure
 
+
+### Agent B — round 2 (from the team, 14:45). Do these in order. Everything you need from A is already in `src/shared/`.
+
+**Product direction from the team:** the app's job is to show whether fires are **human-made or natural**. We present it as a **likelihood for an area** (from the weekly-cycle test), never as a label on a single fire. Wording: "likely human-driven" / "likely natural", "human likelihood 0.89", never "these fires were set by humans".
+
+- ⚪ **B12 Toggle: replace "Missed fires" with "Human vs natural".** In `TopBar.tsx` the third option becomes `{ id: 'human', label: 'Human vs natural' }` (sentence case). The globe already colours fires from cool ice (likely natural) to hot magenta (likely human) when `mode === 'human'`. Update `RecordBar.tsx`/`SpotlightPanel.tsx` so the human mode shows the **human likelihood** as the hero (not the missed count). A added a placeholder `human` entry in `RecordBar.tsx` only so the build stays green; restyle freely. Keep `'difference'` out of the UI.
+- ⚪ **B13 Legend for human mode:** a small gradient bar (natural → human, `cyan` → `missed`) with "Likely natural" / "Likely human-driven" end labels, shown only when `mode === 'human'`.
+- ⚪ **B14 Place search box** (top of the right panel, or in the top bar): `searchPlaces(query)` from `src/shared/api.ts` returns `Place[]` (offline gazetteer + OpenStreetMap). Debounce 250ms, show name + `context` (e.g. "India, India & China crop belts"). On pick: `useApp.getState().setPlace(place)`; the globe flies there and drops a labelled marker. Users can also **click anywhere on the globe** to pick a spot (A already wires that to `setPlace`). Show the picked place as a removable chip ("× Near Lahore"); `setPlace(null)` clears it. If `place.regionId === null`, say "Outside the study regions. No data here yet."
+- ⚪ **B15 Right panel: two views, "Progress" and "Calendar"** (a segmented switch at the top of the region panel). The panel's subject is `currentTarget(useApp.getState())` from `api.ts`: the place if one is picked, else the region.
+- ⚪ **B16 Progress view: "how much worse since 2001".** `getProgress(target)` returns a `ProgressSummary`. Show:
+  - a **progress bar** from the baseline (mean of 2001–2003) to recent (mean of the last 3 years), with `changePct` as the hero readout (`+132%`) and `direction` in words ("Getting worse" / "Getting better" / "Stable");
+  - a sparkline of `series` (harmonized solid, legacy faint);
+  - human likelihood (legacy → harmonized) as a small bar with the natural/human legend from B13.
+- ⚪ **B17 Calendar view: pick a day.** `getDaily(target, year)` gives every day of the year (`DailyPoint[]`). Show a **month-grid calendar popup/panel** (Mon-first weeks), each day shaded by `harmonized` fires (use the `fire` ramp), with month/year navigation (year follows `useApp.year`; `setYear` when the user changes it). Clicking a day calls `useApp.getState().setDate('YYYY-MM-DD')` and shows a **day card** from `getDay(target, date)`: fires (legacy vs harmonized), weekday + weekend flag, "vs the year's daily average" and "vs the average <weekday>" %, rank in the year ("8th busiest day of 2019"), and the area's human likelihood. Keyboard: arrow keys move between days, Enter selects.
+- ⚪ **B18 Compare days:** a "Compare" action on the day card calls `toggleCompare(date)` (max 3 kept in `compareDates`). Show the pinned days side by side (fires, weekday, vs average), so users can compare, e.g., a weekday and a weekend, or the same date across years. "Clear" calls `clearCompare()`.
+- ⚪ **B19 Design cleanup still pending** (see the earlier A → B design request and `DESIGN.md` rules 1–7): no caps, no `·`-joined strings, `.wordmark`, badge "Sample data, not results".
+- ⚪ **B20 Tour update:** add one step that switches to `mode: 'human'` over India & China ("Crop-residue burning: a strong human rhythm") and one over Boreal North America ("Lightning fires: mostly natural").
+
+**State you'll use** (`src/shared/store.ts`): `place`, `setPlace`, `date`, `setDate` (also sets `year`), `compareDates`, `toggleCompare`, `clearCompare`. `selectRegion()` clears place/date/compare.
+**Debug in the browser console:** `window.__thermora.getState()`, `window.__thermoraApi.getProgress({ kind: 'region', regionId: 'amazon' })`.
+
 ## Requests (one agent asking the other)
 - A → B (FYI): `src/shared/sun.ts` exports `sunPosition()` — use it for a live "subsolar point" readout in the HUD if you like.
 - A → B (FYI): the globe already reacts to `mode`, `regionId`, `year`. The spotlight numbers should also count up/animate when `mode` changes (B3).
@@ -51,6 +73,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - A → B (FYI): per the humans, A removed the fire icon from `Brand()` in `src/ui/TopBar.tsx` (one-off edit in your file, nothing else touched). Keep it out for now.
 
 ## Contract changes (shared/ edits that rename/remove things)
+- A: `Mode` gains `'human'` (UI should use it instead of `'difference'`, which stays only for compatibility). `FireCell` gains `human` (0–1). New: `Place`, `Target`, `ProgressSummary`, `DailyPoint`, `DayDetail`; api `searchPlaces`, `placeFromPoint`, `getProgress`, `getDaily`, `getDay`, `currentTarget`; store `place/date/compareDates` + setters. `selectRegion` now also clears place/date/compare. A patched `src/ui/RecordBar.tsx` minimally (added the `human` entry) so the build stays green.
 - A: design tokens in `src/index.css` changed **values** only (names kept). Fonts: `@fontsource/space-grotesk` and `@fontsource/jetbrains-mono` removed, `@fontsource-variable/archivo` added (imported in `main.tsx`).
 - _none yet_
 

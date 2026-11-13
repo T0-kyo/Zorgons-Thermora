@@ -93,6 +93,49 @@ Keeps the global numbers consistent with the per-region ones (today the UI sums 
 ```
 Shown in the Methods panel.
 
+### Added 14:45: human vs natural, places, calendar
+
+**`/cells` rows gain `human`** (0–1): likelihood that fire activity in that cell is human-driven (weekly-cycle test per cell, or the region's score if a cell has too few detections). This drives the globe's "Human vs natural" mode.
+```json
+{ "lat": -4.5, "lng": -61.2, "regionId": "amazon", "legacy": 812, "harmonized": 968, "human": 0.81 }
+```
+
+A **target** is either `region=<id>` **or** `lat=&lng=&radiusKm=` (a place the user searched for or clicked; aggregate the fires within that radius).
+
+`GET /progress?region=amazon` | `?lat=31.1&lng=30.9&radiusKm=150`: "how much worse since 2001"
+```json
+{
+  "name": "Amazon Basin",
+  "years": { "first": 2001, "last": 2025 },
+  "series": [ { "year": 2001, "legacy": 9100, "harmonized": 10850 } ],
+  "baseline": 10980, "recent": 12410, "changePct": 13.0, "direction": "worse",
+  "humanLikelihood": { "legacy": 0.77, "harmonized": 0.83 },
+  "covered": true
+}
+```
+`baseline` / `recent` = mean harmonized fires per year over the first / last 3 years. `direction`: worse if > +10%, better if < −10%, else stable. `covered: false` if the place is outside all study regions.
+
+`GET /daily?year=2019&region=amazon` (or a place): every day of the year, for the calendar
+```json
+[ { "date": "2019-01-01", "legacy": 12, "harmonized": 15 } ]
+```
+**Needs daily aggregation** of the FIRMS detections. Please use **local solar date** (acquisition time + longitude/15 h), so the days and weekends line up with the weekly-cycle test.
+
+`GET /day?date=2019-11-03&region=india_china` (or a place): the day card
+```json
+{
+  "date": "2019-11-03", "weekday": 6, "isWeekend": true,
+  "firesLegacy": 288, "firesHarmonized": 407,
+  "humanLikelihood": 0.90,
+  "vsYearAvgPct": 415.4, "vsWeekdayAvgPct": 507.1, "rankInYear": 8
+}
+```
+`weekday`: 0 = Monday. The frontend can derive this card from `/daily` if you'd rather not build it.
+
+**Place search** is done in the frontend (offline gazetteer + OpenStreetMap). The backend only needs to accept `lat/lng/radiusKm` targets.
+
+**Wording rule (science honesty):** the human/natural signal is a **likelihood for an area**, not a classification of individual fires. Please keep the same wording in slides.
+
 ### Errors
 `400` for a bad `year`, `404` for an unknown region, with `{ "error": "message" }`.
 
@@ -138,3 +181,5 @@ Use camelCase JSON (the ASP.NET default), so the property names above match exac
 - Definitions (undercount period, CI level, weekday basis, trend units):
 - Demo URL / CORS:
 - API or static files for the demo:
+- Per-cell human likelihood available? (else we use the region score for every cell):
+- Daily aggregation available? Local solar date?:
