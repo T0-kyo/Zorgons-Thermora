@@ -1,6 +1,7 @@
 # Frontend task board
 
-Status: ⚪ todo · 🟡 in progress · 🟢 done (merged) · 🔴 blocked
+Status: ⚪ todo · 🟡 in progress · 🟢 done (merged into submain) · 🔴 blocked
+"Done" = merged into `submain` (the frontend integration branch). `main` is not touched until the team says so.
 Update your own lines in every commit that changes status. Times are Cairo, Fri 13 → Sat 14 Nov.
 
 ## Milestones

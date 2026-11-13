@@ -7,7 +7,7 @@ They cannot talk to each other directly. **This file and `TASKS.md` are how they
 - **Agent B** — app UI, panels, charts (directed by the second frontend teammate)
 
 ## Before you start any work
-1. `git fetch origin` and read the latest `frontend/TASKS.md` on `main` **and** on the other agent's open branches.
+1. `git fetch origin` and read the latest `frontend/TASKS.md` on `submain` **and** on the other agent's open branches.
 2. Pick only tasks assigned to you. Mark them `🟡 in progress` in `TASKS.md` in your first commit.
 
 ## Ownership — never edit the other agent's files
@@ -29,8 +29,10 @@ If you need something in the other agent's area, **don't change it — add a req
 - Mock data is served until `VITE_API_URL` is set. The UI must keep showing the "MOCK DATA" badge while `USING_MOCK` is true — never present mock numbers as real results.
 
 ## Git
-- Branches: Agent A → `frontend/globe-<topic>`, Agent B → `frontend/ui-<topic>`. Never commit straight to `main`.
-- Small PRs into `main`, merged by the humans. Rebase on `main` before opening a PR.
+- **`main` is off-limits.** Never commit, push, merge, rebase onto, or open a PR into `main` — and never suggest doing so. It is only touched when the humans explicitly say so.
+- **`submain` is the integration branch** for all frontend work. Branch from `submain`, open PRs into `submain`; the humans merge them.
+- Branches: Agent A → `frontend/globe-<topic>`, Agent B → `frontend/ui-<topic>`. Never commit straight to `submain` either.
+- Keep PRs small. Rebase on `submain` before opening a PR.
 - Commit messages: `[A] …` or `[B] …` prefix.
 - Never touch anything outside `frontend/` (backend/data folders belong to other teammates).
 
