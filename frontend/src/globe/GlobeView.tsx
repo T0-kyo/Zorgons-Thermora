@@ -95,6 +95,19 @@ export default function GlobeView() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // keyboard shortcut (until the toggle has the button): H = Human vs natural on/off
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      if (e.key === 'h' || e.key === 'H') {
+        const st = useApp.getState()
+        st.setMode(st.mode === 'human' ? 'harmonized' : 'human')
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // pause rendering when the tab is hidden
   useEffect(() => {
     const onVis = () => {
