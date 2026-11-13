@@ -9,7 +9,8 @@ import RegionList, { RegionChips } from './ui/RegionList'
 import SpotlightPanel from './ui/SpotlightPanel'
 import Timeline from './ui/Timeline'
 import { usePlayback } from './ui/usePlayback'
-import Tour from './ui/Tour'
+import Tour from './ui/tour/Tour'
+import ScriptPanel from './ui/tour/ScriptPanel'
 import AboutModal from './ui/AboutModal'
 import MobileSheet from './ui/MobileSheet'
 import { useIsMobile } from './ui/uiStore'
@@ -51,6 +52,7 @@ export default function App() {
       {mobile ? <MobileLayout /> : <DesktopLayout />}
       <Tour />
       <AboutModal />
+      <ScriptPanel />
     </div>
   )
 }

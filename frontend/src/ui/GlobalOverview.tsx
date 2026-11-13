@@ -5,12 +5,14 @@ import CountUp from './CountUp'
 import { fmtPct, useYearTotals } from './data'
 import { HeroCount, RecordBar } from './RecordBar'
 import { TourButton } from './TopBar'
+import { startGuidedTour } from './tour/control'
 
 export default function GlobalOverview({ compact = false }: { compact?: boolean }) {
   const year = useApp((s) => s.year)
   const mode = useApp((s) => s.mode)
   const selectRegion = useApp((s) => s.selectRegion)
   const stopTour = useApp((s) => s.stopTour)
+  const touring = useApp((s) => s.touring)
   const totals = useYearTotals(year)
 
   const ranked = totals
@@ -66,9 +68,21 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
         </div>
       )}
 
-      <div className="mt-4 flex items-center gap-3 border-t border-line pt-3">
-        <TourButton />
-        <span className="text-xs text-dim">60-second guided tour of the findings</span>
+      <div className="mt-4 border-t border-line pt-3">
+        <div className="label mb-2">Guided tour with voiceover</div>
+        <div className="flex flex-wrap items-center gap-2">
+          <TourButton />
+          {!touring && (
+            <button
+              data-tour-control
+              onClick={() => startGuidedTour('short')}
+              className="rounded border border-line px-3 py-1.5 text-[13px] whitespace-nowrap text-text/85 transition-colors hover:border-cyan/40 hover:text-cyan"
+            >
+              30-second cut
+            </button>
+          )}
+          <span className="text-xs text-dim">About a minute, or 30 seconds for the video</span>
+        </div>
       </div>
     </div>
   )

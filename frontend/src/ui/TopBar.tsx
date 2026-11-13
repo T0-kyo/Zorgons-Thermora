@@ -5,6 +5,7 @@ import { useApp } from '../shared/store'
 import { USING_MOCK } from '../shared/api'
 import type { Mode } from '../shared/types'
 import { useUi } from './uiStore'
+import { startGuidedTour, stopGuidedTour } from './tour/control'
 
 const MODES: { id: Mode; label: string; short: string; on: string; pill: string }[] = [
   { id: 'legacy', label: 'Legacy · MODIS', short: 'Legacy', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
@@ -73,17 +74,15 @@ export function MockBadge() {
 
 export function TourButton({ className = '' }: { className?: string }) {
   const touring = useApp((s) => s.touring)
-  const startTour = useApp((s) => s.startTour)
-  const stopTour = useApp((s) => s.stopTour)
   return (
     <button
-      data-tour-btn
-      onClick={() => (touring ? stopTour() : startTour())}
-      className={`rounded border px-3 py-1.5 font-mono text-[11px] tracking-wider whitespace-nowrap uppercase transition-colors ${
+      data-tour-control
+      onClick={() => (touring ? stopGuidedTour() : startGuidedTour('full'))}
+      className={`rounded border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors ${
         touring ? 'border-missed/50 bg-missed/15 text-missed' : 'border-cyan/40 text-cyan hover:bg-cyan/10'
       } ${className}`}
     >
-      {touring ? '■ Stop tour' : '▶ Tour'}
+      {touring ? 'Stop tour' : 'Start tour'}
     </button>
   )
 }

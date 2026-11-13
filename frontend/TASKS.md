@@ -36,6 +36,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - 🟡 B9 (branch: frontend/ui-agent-b) Global overview panel when no region selected (headline question + global undercount)
 - 🟡 B10 (branch: frontend/ui-agent-b) Mobile layout: bottom sheet for spotlight, chips for regions
 - 🟡 B11 (branch: frontend/ui-agent-b) About / Methods modal: data sources (NASA FIRMS MODIS + VIIRS), method summary, team, AI-use disclosure
+- 🟡 B12 (branch: frontend/ui-voiceover) Tour voiceover: one clip per shot, audio-clock timing, 30-second cut for the video, script sheet (`#voiceover` / Shift+V), `npm run voice:prepare`. See `frontend/VOICEOVER.md`.
 
 ## Requests (one agent asking the other)
 - A → B (FYI): `src/shared/sun.ts` exports `sunPosition()` — use it for a live "subsolar point" readout in the HUD if you like.
