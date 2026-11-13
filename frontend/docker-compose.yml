@@ -1,0 +1,30 @@
+# Thermora frontend
+#   Production build on http://localhost:8080 :   docker compose up --build web
+#   Dev server w/ hot reload on http://localhost:5173 :   docker compose --profile dev up dev
+#   Real backend:   VITE_API_URL=http://localhost:5000 docker compose up --build web
+
+services:
+  web:
+    build:
+      context: .
+      target: runtime
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+    image: thermora-frontend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-}
+      CHOKIDAR_USEPOLLING: "true" # file watching on Windows/macOS mounts
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules # keep the container's node_modules, not the host's
