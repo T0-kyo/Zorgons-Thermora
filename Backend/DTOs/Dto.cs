@@ -1,6 +1,6 @@
-namespace GtoApi.DTOs
+namespace Backend.DTOs
 {
-    public class GtoDto
+    public class SatelliteDto
     {
         public string SatelliteName { get; set; } = string.Empty;
         public double Latitude { get; set; }
