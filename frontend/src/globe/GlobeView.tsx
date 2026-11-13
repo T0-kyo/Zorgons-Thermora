@@ -22,6 +22,7 @@ import { getCells } from '../shared/api'
 import { regionFeatures } from '../shared/mock'
 import { sunPosition } from '../shared/sun'
 import type { FireCell, Mode } from '../shared/types'
+import { YEARS } from '../shared/types'
 import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
 
 const GLOBAL_VIEW = { lat: 18, lng: 20, altitude: 2.5 }
@@ -67,6 +68,8 @@ export default function GlobeView() {
   const regionId = useApp((s) => s.regionId)
   const mode = useApp((s) => s.mode)
   const year = useApp((s) => s.year)
+  const playing = useApp((s) => s.playing)
+  const cameraTarget = useApp((s) => s.cameraTarget)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [allCells, setAllCells] = useState<FireCell[]>([])
   const [outline, setOutline] = useState<Feature[]>([])
@@ -98,11 +101,22 @@ export default function GlobeView() {
   }, [])
 
   // ---- data ---------------------------------------------------------------
+  // per-year cache + prefetch of neighbours so playback never waits on the network
+  const yearCache = useRef(new Map<number, Promise<FireCell[]>>())
+  const cellsFor = useCallback((y: number) => {
+    const cache = yearCache.current
+    if (!cache.has(y)) cache.set(y, getCells(y).catch((e) => { cache.delete(y); throw e }))
+    return cache.get(y)!
+  }, [])
+
   useEffect(() => {
     let live = true
-    getCells(year).then((c) => live && setAllCells(c))
+    cellsFor(year).then((c) => live && setAllCells(c)).catch(() => {})
+    for (const n of [year + 1, year + 2, year - 1]) {
+      if (n >= YEARS.min && n <= YEARS.max) cellsFor(n).catch(() => {})
+    }
     return () => { live = false }
-  }, [year])
+  }, [year, cellsFor])
 
   useEffect(() => {
     let live = true
@@ -117,7 +131,22 @@ export default function GlobeView() {
     () => (regionId ? allCells.filter((c) => c.regionId === regionId) : allCells),
     [allCells, regionId],
   )
-  const refs = useMemo(() => hexMaxima(cells, res), [cells, res])
+  // Height scale is fixed across ALL years (once loaded) so playback shows real growth/decline.
+  const [allYears, setAllYears] = useState<FireCell[][] | null>(null)
+  useEffect(() => {
+    const ys = Array.from({ length: YEARS.max - YEARS.min + 1 }, (_, i) => YEARS.min + i)
+    Promise.all(ys.map(cellsFor)).then(setAllYears).catch(() => {})
+  }, [cellsFor])
+  const refs = useMemo(() => {
+    if (!allYears) return hexMaxima(cells, res)
+    let abs = 1, diff = 1
+    for (const yc of allYears) {
+      const m = hexMaxima(regionId ? yc.filter((c) => c.regionId === regionId) : yc, res)
+      abs = Math.max(abs, m.abs)
+      diff = Math.max(diff, m.diff)
+    }
+    return { abs, diff }
+  }, [allYears, cells, res, regionId])
 
   const hottest = useMemo(
     () => (regionId ? [...cells].sort((a, b) => b.harmonized - a.harmonized).slice(0, 5) : []),
@@ -125,13 +154,15 @@ export default function GlobeView() {
   )
 
   // ---- camera -------------------------------------------------------------
+  // cameraTarget (tour) wins over the region's default view
   useEffect(() => {
     const g = ref.current
     if (!g) return
     const region = regionById(regionId)
-    g.controls().autoRotate = !region
-    g.pointOfView(region ? region.center : GLOBAL_VIEW, 1600)
-  }, [regionId])
+    g.controls().autoRotate = !region && !cameraTarget
+    const target = cameraTarget ?? region?.center ?? GLOBAL_VIEW
+    g.pointOfView(target, cameraTarget?.ms ?? 1600)
+  }, [regionId, cameraTarget])
 
   const onReady = useCallback(() => {
     const g = ref.current
@@ -145,6 +176,11 @@ export default function GlobeView() {
     controls.dampingFactor = 0.08
     controls.minDistance = g.getGlobeRadius() * 1.25
     controls.maxDistance = g.getGlobeRadius() * 6
+    // any manual drag/zoom stops the guided tour
+    controls.addEventListener('start', () => {
+      const st = useApp.getState()
+      if (st.touring) st.stopTour()
+    })
     g.pointOfView(INTRO_VIEW, 0)
     setTimeout(() => g.pointOfView(regionById(useApp.getState().regionId)?.center ?? GLOBAL_VIEW, 2600), 150)
 
@@ -227,7 +263,7 @@ export default function GlobeView() {
       hexTopColor={hexColor}
       hexSideColor={hexColor}
       hexMargin={0.15}
-      hexTransitionDuration={900}
+      hexTransitionDuration={playing ? 650 : 900}
       hexLabel={hexLabel}
       // selected region outline
       polygonsData={outline}

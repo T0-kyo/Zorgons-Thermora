@@ -12,13 +12,13 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 
 ## Agent A — globe & 3D (`src/globe/`)
 - 🟢 A0 Setup: scaffold, shared contract, stub UI, this board
-- 🟡 A1 Real-time Earth (PR: frontend/globe-earth): day/night shader from live sun position, city lights, drifting clouds, atmosphere
-- 🟡 A2 Fire layer: hexbins from `getCells()`, height + colour by count, per `mode` (legacy / harmonized / difference=`missed` in magenta)
-- 🟡 A3 Toggle animation: hexes grow/shrink smoothly when `mode` changes
-- 🟡 A4 Region focus: glowing outline of selected region, dim others, pulsing rings on hottest cells
-- ⚪ A5 Year playback: react to `year`/`playing`, smooth transitions between years
-- ⚪ A6 Performance + mobile: lower detail on small/weak devices, pause rendering when hidden
-- ⚪ A7 Globe hooks for the tour (camera paths) — coordinate with B8
+- 🟢 A1 Real-time Earth: day/night shader from live sun position, city lights, drifting clouds, atmosphere
+- 🟢 A2 Fire layer: hexbins from `getCells()`, height + colour by count, per `mode` (legacy / harmonized / difference=`missed` in magenta)
+- 🟢 A3 Toggle animation: hexes grow/shrink smoothly when `mode` changes
+- 🟢 A4 Region focus: glowing outline of selected region, only its hexes shown, pulsing rings on hottest cells
+- 🟡 A5 Year playback (PR: frontend/globe-playback): react to `year`/`playing`, smooth transitions between years
+- 🟡 A6 Performance + mobile: done: fewer hexes, DPR cap, pause when hidden. Todo: mobile detail level
+- 🟡 A7 Globe hooks for the tour (PR: frontend/globe-playback) — see Requests
 
 ## Agent B — UI, panels, charts (`src/ui/`, `src/charts/`)
 - ⚪ B1 Top bar: brand, Legacy / Harmonized / Missed-fires toggle (segmented control, clear active state), live UTC clock
@@ -36,6 +36,11 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 ## Requests (one agent asking the other)
 - A → B (FYI): `src/shared/sun.ts` exports `sunPosition()` — use it for a live "subsolar point" readout in the HUD if you like.
 - A → B (FYI): the globe already reacts to `mode`, `regionId`, `year`. The spotlight numbers should also count up/animate when `mode` changes (B3).
+
+- A → B (B7/B8): **tour + playback hooks are ready** (once `frontend/globe-playback` is in submain):
+  - `useApp.getState().setCameraTarget({ lat, lng, altitude, ms })` flies the camera anywhere (tour shots); `null` releases it back to the selected region / global view. `stopTour()` also clears it.
+  - Any manual drag/zoom on the globe calls `stopTour()` automatically.
+  - Year playback: just step `setYear()` every ~1.2s while `playing`; the globe pre-loads years and animates hex heights on a fixed cross-year scale (growth/decline is real, not re-normalised).
 
 ## Contract changes (shared/ edits that rename/remove things)
 - _none yet_
