@@ -17,10 +17,12 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - 🟢 A3 Toggle animation: hexes grow/shrink smoothly when `mode` changes
 - 🟢 A4 Region focus: glowing outline of selected region, only its hexes shown, pulsing rings on hottest cells
 - 🟢 A5 Year playback: react to `year`/`playing`, smooth transitions between years
-- 🟡 A6 Performance + mobile: done: fewer hexes, DPR cap, pause when hidden. Todo: mobile detail level
+- 🟢 A6 Performance + mobile: fewer meshes, DPR cap, pause when hidden, camera fits portrait screens
 - 🟢 A7 Globe hooks for the tour — see Requests
 
-- 🟡 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
+- 🟢 A9 Cinematic camera: sunrise intro, swoop fly-to, region drift, toggle flare
+- 🟡 A10 Backend contract: `frontend/API_CONTRACT.md` (waiting on backend decisions), then swap `api.ts`
+- 🟢 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
 
 ## Agent B — UI, panels, charts (`src/ui/`, `src/charts/`)
 - 🟡 B1 (branch: frontend/ui-agent-b) Top bar: brand, Legacy / Harmonized / Missed-fires toggle (segmented control, clear active state), live UTC clock — subsolar-point readout to add once `src/shared/sun.ts` (Agent A) is merged
@@ -53,5 +55,6 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - _none yet_
 
 ## Notes for the backend
+- **Full contract and open questions: `frontend/API_CONTRACT.md`.**
 - Frontend (B) aggregates `GET /cells?year=` (no region) for the global and per-region undercount in the region list / overview, using (harmonized − legacy) / legacy. If the backend computes undercount differently, a `GET /summary?year=` (global) endpoint would keep these consistent with `/regions/:id/summary`.
 - Frontend expects: `GET /regions`, `GET /cells?year=&region=` (both `legacy` and `harmonized` counts per cell in one response), `GET /regions/:id/summary?year=`. Exact shapes: `src/shared/types.ts`.
