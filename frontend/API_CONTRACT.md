@@ -8,6 +8,21 @@ Backend team: the **decisions in section 1** block us. Please answer them at the
 
 ---
 
+## Compatibility with the current backend (checked against `main`, Fri 23:00)
+
+The backend's controller (`Backend/api/Controllers/DataController.cs`) has every endpoint below, under the **`/api`** prefix (`/api/cells` …). The frontend calls `/api/...` and accepts these differences automatically, so **no backend change is required for them**:
+
+| Backend sends | Frontend converts to |
+|---|---|
+| `undercountCi: "±4.3%"` (string) | `[pct − 4.3, pct + 4.3]` |
+| `humanScoreLegacy`, `humanScoreHarmonized` | `humanScore: { legacy, harmonized }` |
+| progress `humanLikelihood: 0.77` (one number) | `{ legacy: 0.77, harmonized: 0.77 }` |
+| `direction: "increasing" / "decreasing"` | `worse` / `better` |
+| `date: "2019-01-01T00:00:00"` (DateTime) | `"2019-01-01"` |
+| cells filter `?regionId=` | we send both `region` and `regionId` |
+
+**What is still needed:** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
+
 ## 0. At a glance
 
 | # | Endpoint | Required? | What it powers | How often we call it |
