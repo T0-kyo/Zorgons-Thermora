@@ -59,3 +59,41 @@ html, body, #root {
   text-transform: uppercase;
   color: var(--color-dim);
 }
+
+/* Timeline year slider (B7) */
+.timeline-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+}
+.timeline-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-line);
+}
+.timeline-range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-line);
+}
+.timeline-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--color-cyan);
+  box-shadow: 0 0 0 4px rgb(90 209 255 / 0.18), 0 0 12px var(--color-cyan);
+}
+.timeline-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-cyan);
+  box-shadow: 0 0 0 4px rgb(90 209 255 / 0.18), 0 0 12px var(--color-cyan);
+}
+.timeline-range:focus-visible { outline: none; }
+.timeline-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgb(90 209 255 / 0.35); }
