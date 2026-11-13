@@ -25,7 +25,7 @@ import type { FireCell, Mode } from '../shared/types'
 import { YEARS } from '../shared/types'
 import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
 import { FireGlow } from './FireGlow'
-import { fitAltitude, setDrift, setViewAspect, sunriseIntro, swoopTo } from './cinematics'
+import { fitAltitude, setSpin, setViewAspect, startHover, stopHover, sunriseIntro, swoopTo } from './cinematics'
 
 /** 'glow' = flickering ember points (default, one draw call). 'hex' = 3D hex columns (fallback). */
 const FIRE_STYLE: 'glow' | 'hex' = 'glow'
@@ -207,16 +207,15 @@ export default function GlobeView() {
     if (!g) return
     const region = regionById(regionId)
     const target = cameraTarget ?? (place ? { lat: place.lat, lng: place.lng, altitude: 0.6 } : null) ?? region?.center ?? GLOBAL_VIEW
-    if (cameraTarget || place) {
-      g.controls().autoRotate = false
-      swoopTo(g, target, cameraTarget?.ms ?? 2400, { cinematic: useApp.getState().touring })
-    } else if (region) {
-      setDrift(g, true) // slow cinematic orbit around the region
-      swoopTo(g, target, 2600, { cinematic: useApp.getState().touring })
+    const cinematic = useApp.getState().touring
+    if (cameraTarget || place || region) {
+      // focused: stop spinning, fly there, then hold the region in the centre (gentle hover)
+      setSpin(g, false)
+      const dur = swoopTo(g, target, cameraTarget?.ms ?? (place ? 2400 : 2600), { cinematic })
+      startHover(g, target, dur + 120)
     } else {
-      setDrift(g, false)
-      g.controls().autoRotate = true
-      swoopTo(g, target, 2200, { cinematic: useApp.getState().touring })
+      swoopTo(g, target, 2200, { cinematic })
+      setSpin(g, true)
     }
   }, [regionId, cameraTarget, place])
 
@@ -236,7 +235,9 @@ export default function GlobeView() {
     controls.addEventListener('start', () => {
       const st = useApp.getState()
       if (st.touring) st.stopTour()
-      if (st.regionId) controls.autoRotate = false // user took the camera: stop the drift
+      // user took the camera: stop the hover so it never fights the drag
+      stopHover()
+      if (st.regionId || st.place) controls.autoRotate = false
     })
     // cinematic intro: deep space on the night side, glide over the terminator into daylight
     sunriseIntro(g, sunPosition(), regionById(useApp.getState().regionId)?.center ?? GLOBAL_VIEW)
