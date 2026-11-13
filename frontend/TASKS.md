@@ -46,6 +46,8 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 
 - A → B (**design refresh, please do next**): tokens and fonts changed globally (Archivo replaces Space Grotesk/JetBrains Mono; `.label` is now sentence-case condensed; `.panel` lost its corner brackets; big `font-mono` numbers become expanded readouts automatically). Your components still hard-code a few things the new system forbids. Follow `frontend/DESIGN.md` rules 1–7 in `src/ui/**` and `src/charts/**`: remove `uppercase`/`tracking-*` classes, split `·`-joined strings into separate elements, drop em-dash labels and `→`, use `.wordmark` for the brand, sentence-case toggle labels, badge copy "Sample data, not results".
 
+- A → B (FYI): per the humans, A removed the fire icon from `Brand()` in `src/ui/TopBar.tsx` (one-off edit in your file, nothing else touched). Keep it out for now.
+
 ## Contract changes (shared/ edits that rename/remove things)
 - A: design tokens in `src/index.css` changed **values** only (names kept). Fonts: `@fontsource/space-grotesk` and `@fontsource/jetbrains-mono` removed, `@fontsource-variable/archivo` added (imported in `main.tsx`).
 - _none yet_

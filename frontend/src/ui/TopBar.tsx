@@ -91,10 +91,6 @@ export function TourButton({ className = '' }: { className?: string }) {
 function Brand() {
   return (
     <div className="flex items-center gap-2.5">
-      <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" aria-hidden>
-        <circle cx="12" cy="12" r="10" fill="none" stroke="var(--color-cyan)" strokeOpacity="0.6" />
-        <path d="M12 5c2.5 3 4 5 4 7.5a4 4 0 0 1-8 0C8 10.8 9 9.6 10 8.6c.2 1.3.9 2.2 1.8 2.6C11.5 9 11.6 7 12 5z" fill="var(--color-fire)" />
-      </svg>
       <div className="leading-tight">
         <div className="font-semibold tracking-[0.28em]">THERMORA</div>
         <div className="label hidden lg:block">MODIS × VIIRS · the corrected fire record</div>
