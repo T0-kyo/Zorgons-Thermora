@@ -23,7 +23,7 @@ Node 22 and nginx 1.27 are pinned in the `Dockerfile`; dependencies come from `p
 ## Notes
 
 - Uses mock data until `VITE_API_URL` points at the backend (a "MOCK DATA" badge is shown meanwhile).
-- Deploy (Vercel/Netlify): root directory `frontend`, build `npm run build`, output `dist`.
+- Deploy on Vercel: import the repo, **Root Directory `frontend`** (settings come from `frontend/vercel.json`), **Production Branch `submain`**. Optional env var `VITE_API_URL` (defaults to the team backend).
 - Agents/teammates: read `CLAUDE.md`, `DESIGN.md` and `TASKS.md` first.
 
 Earth textures and country outlines come from the `three-globe` examples (NASA Blue Marble / Black Marble, Natural Earth).
