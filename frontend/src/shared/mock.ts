@@ -42,6 +42,9 @@ const P: Record<string, { undercount: number; human: number; weekly: number; slo
   india_china: { undercount: 41, human: 0.92, weekly: 0.19, slope: 0.011, size: 0.8 },
 }
 
+const DEFAULT_P = { undercount: 18, human: 0.55, weekly: 0.06, slope: 0.005, size: 0.4 }
+const pOf = (id: string) => P[id] ?? DEFAULT_P
+
 // ---- geometry ------------------------------------------------------------
 let countriesP: Promise<FeatureCollection> | null = null
 const loadCountries = () =>
@@ -93,7 +96,7 @@ async function regionLayout(regionId: string) {
 }
 
 const yearFactor = (regionId: string, year: number) => {
-  const p = P[regionId]
+  const p = pOf(regionId)
   const r = rng(`yr:${regionId}:${year}`)
   return Math.max(0.3, 1 + p.slope * (year - 2001) * 6 + gauss(r) * 0.12)
 }
@@ -105,7 +108,7 @@ export async function mockCells(year: number, regionId?: string | null): Promise
   for (const id of ids) {
     const layout = await regionLayout(id)
     const yf = yearFactor(id, year)
-    const u = P[id].undercount / 100
+    const u = pOf(id).undercount / 100
     const r = rng(`cells:${id}:${year}`)
     for (const c of layout) {
       const legacy = Math.round(c.w * yf * 40 * (0.7 + r() * 0.6))
@@ -118,7 +121,7 @@ export async function mockCells(year: number, regionId?: string | null): Promise
 }
 
 export async function mockSummary(regionId: string, year: number): Promise<RegionSummary> {
-  const p = P[regionId]
+  const p = pOf(regionId)
   const cells = await mockCells(year, regionId)
   const firesLegacy = cells.reduce((s, c) => s + c.legacy, 0)
   const firesHarmonized = cells.reduce((s, c) => s + c.harmonized, 0)

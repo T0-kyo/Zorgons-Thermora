@@ -20,6 +20,7 @@ The backend's controller (`Backend/api/Controllers/DataController.cs`) has every
 | `direction: "increasing" / "decreasing"` | `worse` / `better` |
 | `date: "2019-01-01T00:00:00"` (DateTime) | `"2019-01-01"` |
 | cells filter `?regionId=` | we send both `region` and `regionId` |
+| `GET /api/regions` (when it returns a list) | **replaces our built-in region list**, so ids always match your data. Known ids keep our camera views and outlines; new ids use your `center` |
 
 **What is still needed:** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
 

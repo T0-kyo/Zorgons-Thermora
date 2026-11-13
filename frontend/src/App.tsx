@@ -18,6 +18,7 @@ import MobileSheet from './ui/MobileSheet'
 import { useIsMobile, useUi } from './ui/uiStore'
 import Spectrum from './ui/Spectrum'
 import ModeTabs from './ui/ModeTabs'
+import { useDataStatus } from './shared/dataStatus'
 import { CollapseButton, Rail, usePanelKey, usePanelState } from './ui/Rail'
 
 function Masthead({ onCollapse }: { onCollapse: () => void }) {
@@ -142,6 +143,8 @@ function MobileLayout() {
 }
 
 export default function App() {
+  // re-render everything when the backend replaces the region list
+  useDataStatus((s) => s.regionsVersion)
   const mobile = useIsMobile()
   usePlayback()
   return (

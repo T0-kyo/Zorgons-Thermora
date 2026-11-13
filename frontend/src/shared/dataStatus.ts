@@ -11,6 +11,8 @@ export type Source = 'real' | 'mock'
 interface DataStatus {
   backend: Backend
   sources: Record<string, Source>
+  /** bumps when the region list is replaced by the backend's, so the UI re-renders */
+  regionsVersion: number
   setBackend: (b: Backend) => void
   mark: (endpoint: string, s: Source) => void
 }
@@ -18,6 +20,7 @@ interface DataStatus {
 export const useDataStatus = create<DataStatus>((set) => ({
   backend: 'off',
   sources: {},
+  regionsVersion: 0,
   setBackend: (backend) => set({ backend }),
   mark: (endpoint, s) => set((st) => (st.sources[endpoint] === s ? st : { sources: { ...st.sources, [endpoint]: s } })),
 }))

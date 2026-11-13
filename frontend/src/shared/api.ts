@@ -68,9 +68,28 @@ export async function checkHealth() {
   setBackend('checking')
   try {
     const h = await get<{ status?: string }>('/health', true)
-    setBackend(String(h?.status).toLowerCase() === 'healthy' ? 'up' : 'down')
+    const up = String(h?.status).toLowerCase() === 'healthy'
+    setBackend(up ? 'up' : 'down')
+    if (up) void syncRegions()
   } catch {
     setBackend('down')
+  }
+}
+
+/**
+ * Use the backend's region list when it serves one, so region ids always match the data.
+ * Known ids keep our camera views and outlines; new ids get the backend's centre.
+ * Mutates the shared REGIONS array in place and bumps regionsVersion so the UI re-renders.
+ */
+async function syncRegions() {
+  try {
+    const list = normRegions(await get<unknown>('/regions'))
+    if (!list || !list.length) return
+    REGIONS.splice(0, REGIONS.length, ...list)
+    useDataStatus.setState((st) => ({ regionsVersion: st.regionsVersion + 1 }))
+    useDataStatus.getState().mark('regions', 'real')
+  } catch {
+    /* keep built-in regions */
   }
 }
 checkHealth()
