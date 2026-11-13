@@ -21,7 +21,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - ⚪ A7 Globe hooks for the tour (camera paths) — coordinate with B8
 
 ## Agent B — UI, panels, charts (`src/ui/`, `src/charts/`)
-- 🟡 B1 (branch: frontend/ui-agent-b) Top bar: brand, Legacy / Harmonized / Missed-fires toggle (segmented control, clear active state), live UTC clock
+- 🟡 B1 (branch: frontend/ui-agent-b) Top bar: brand, Legacy / Harmonized / Missed-fires toggle (segmented control, clear active state), live UTC clock — subsolar-point readout to add once `src/shared/sun.ts` (Agent A) is merged
 - 🟡 B2 (branch: frontend/ui-agent-b) Region list: cards with name + mini undercount %, hover/selected states, "Global view"
 - 🟡 B3 (branch: frontend/ui-agent-b) Spotlight panel: slide-in, big undercount % with CI, legacy vs harmonized fire counts — **numbers count up on toggle**
 - 🟡 B4 (branch: frontend/ui-agent-b) Human-influence gauge: semicircle 0–1, marker for legacy and harmonized score
@@ -40,4 +40,5 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - _none yet_
 
 ## Notes for the backend
+- Frontend (B) aggregates `GET /cells?year=` (no region) for the global and per-region undercount in the region list / overview, using (harmonized − legacy) / legacy. If the backend computes undercount differently, a `GET /summary?year=` (global) endpoint would keep these consistent with `/regions/:id/summary`.
 - Frontend expects: `GET /regions`, `GET /cells?year=&region=` (both `legacy` and `harmonized` counts per cell in one response), `GET /regions/:id/summary?year=`. Exact shapes: `src/shared/types.ts`.
