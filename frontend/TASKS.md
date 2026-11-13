@@ -13,7 +13,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 ## Agent A — globe & 3D (`src/globe/`)
 - 🟢 A0 Setup: scaffold, shared contract, stub UI, this board
 - 🟢 A1 Real-time Earth: day/night shader from live sun position, city lights, drifting clouds, atmosphere
-- 🟢 A2 Fire layer: hexbins from `getCells()`, height + colour by count, per `mode` (legacy / harmonized / difference=`missed` in magenta)
+- 🟢 A2 Fire layer: glowing "ember" points (FireGlow.ts, one draw call; hex columns kept as fallback via FIRE_STYLE) from `getCells()`, size + brightness by count, per `mode` (legacy / harmonized / difference=`missed` in magenta)
 - 🟢 A3 Toggle animation: hexes grow/shrink smoothly when `mode` changes
 - 🟢 A4 Region focus: glowing outline of selected region, only its hexes shown, pulsing rings on hottest cells
 - 🟡 A5 Year playback (PR: frontend/globe-playback): react to `year`/`playing`, smooth transitions between years

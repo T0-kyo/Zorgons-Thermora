@@ -24,6 +24,10 @@ import { sunPosition } from '../shared/sun'
 import type { FireCell, Mode } from '../shared/types'
 import { YEARS } from '../shared/types'
 import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
+import { FireGlow } from './FireGlow'
+
+/** 'glow' = flickering ember points (default, one draw call). 'hex' = 3D hex columns (fallback). */
+const FIRE_STYLE: 'glow' | 'hex' = 'glow'
 
 const GLOBAL_VIEW = { lat: 18, lng: 20, altitude: 2.5 }
 const INTRO_VIEW = { lat: 30, lng: -10, altitude: 4.2 }
@@ -32,7 +36,7 @@ const RES_REGION = 3
 const MAX_HEX_ALT = { global: 0.07, region: 0.09 }
 
 // token colours (keep in sync with index.css @theme)
-const C = { fire: [255, 106, 43], hot: [255, 214, 130], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#5ad1ff' }
+const C = { fire: [255, 62, 18], hot: [255, 186, 96], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#5ad1ff' }
 
 interface Hex {
   points: FireCell[]
@@ -73,6 +77,8 @@ export default function GlobeView() {
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [allCells, setAllCells] = useState<FireCell[]>([])
   const [outline, setOutline] = useState<Feature[]>([])
+  const [ready, setReady] = useState(false)
+  const glow = useMemo(() => (FIRE_STYLE === 'glow' ? new FireGlow(C) : null), [])
 
   // shared sun direction for earth + clouds shaders
   const sunDir = useMemo(() => new THREE.Vector3(1, 0, 0), [])
@@ -148,6 +154,25 @@ export default function GlobeView() {
     return { abs, diff }
   }, [allYears, cells, res, regionId])
 
+  // ember layer: per-cell scale fixed across all years
+  const glowScale = useMemo(() => {
+    let abs = 1, diff = 1
+    for (const yc of allYears ?? [allCells]) for (const c of yc) {
+      abs = Math.max(abs, c.harmonized)
+      diff = Math.max(diff, c.harmonized - c.legacy)
+    }
+    return { abs, diff }
+  }, [allYears, allCells])
+
+  useEffect(() => {
+    const g = ref.current
+    if (!glow || !g || !ready || !allCells.length) return
+    glow.setData(allCells, glowScale, g.getCoords)
+    glow.setFocus(useApp.getState().regionId)
+  }, [glow, ready, allCells, glowScale])
+  useEffect(() => { glow?.setMode(mode) }, [glow, mode])
+  useEffect(() => { glow?.setFocus(regionId) }, [glow, regionId, ready])
+
   const hottest = useMemo(
     () => (regionId ? [...cells].sort((a, b) => b.harmonized - a.harmonized).slice(0, 5) : []),
     [cells, regionId],
@@ -201,7 +226,10 @@ export default function GlobeView() {
     clouds.rotation.y = -Math.PI / 2
     clouds.onBeforeRender = () => { clouds.rotation.y += 0.00006 }
     g.scene().add(clouds)
-  }, [sunDir])
+
+    if (glow) g.scene().add(glow.points)
+    setReady(true)
+  }, [sunDir, glow])
 
   // ---- hex styling (memoised) ----------------------------------------------
   const isDiff = mode === 'difference'
@@ -256,7 +284,7 @@ export default function GlobeView() {
       atmosphereAltitude={0.16}
       onGlobeReady={onReady}
       // fire hexes
-      hexBinPointsData={cells}
+      hexBinPointsData={FIRE_STYLE === 'hex' ? cells : []}
       hexBinPointWeight={hexWeight}
       hexBinResolution={res}
       hexAltitude={hexAltitude}
