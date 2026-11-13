@@ -45,7 +45,7 @@ const P: Record<string, { undercount: number; human: number; weekly: number; slo
 // ---- geometry ------------------------------------------------------------
 let countriesP: Promise<FeatureCollection> | null = null
 const loadCountries = () =>
-  (countriesP ??= fetch('/data/countries.geojson').then((r) => r.json()))
+  (countriesP ??= fetch(`${import.meta.env.BASE_URL}data/countries.json`).then((r) => r.json()))
 
 export async function regionFeatures(regionId: string): Promise<Feature[]> {
   const fc = await loadCountries()
@@ -74,7 +74,7 @@ async function regionLayout(regionId: string) {
   }
   const spread = Math.max(2, Math.min(9, lngSpan / 10))
   const cells: { lat: number; lng: number; w: number; small: number }[] = []
-  const target = Math.round(260 * (P[regionId]?.size ?? 0.5) + 80)
+  const target = Math.round(150 * (P[regionId]?.size ?? 0.5) + 50)
   for (let i = 0; cells.length < target && i < target * 30; i++) {
     const c = centres[Math.floor(r() * centres.length)]
     if (!c) break
