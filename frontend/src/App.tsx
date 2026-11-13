@@ -13,13 +13,17 @@ import Tour from './ui/Tour'
 import AboutModal from './ui/AboutModal'
 import MobileSheet from './ui/MobileSheet'
 import { useIsMobile } from './ui/uiStore'
+import MapLegend from './ui/HumanLegend'
 
 function DesktopLayout() {
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col gap-3 p-3">
       <TopBar />
       <div className="flex min-h-0 flex-1 items-start justify-between gap-3">
-        <RegionList />
+        <div className="flex max-h-full min-h-0 flex-col gap-3">
+          <RegionList />
+          <MapLegend />
+        </div>
         <SpotlightPanel />
       </div>
       <Timeline />
@@ -47,7 +51,7 @@ export default function App() {
       <div className="absolute inset-0">
         <GlobeView />
       </div>
-      {/* the "MOCK DATA" badge lives in the top bar (always visible) */}
+      {/* the "Sample data" badge lives in the top bar (always visible) */}
       {mobile ? <MobileLayout /> : <DesktopLayout />}
       <Tour />
       <AboutModal />

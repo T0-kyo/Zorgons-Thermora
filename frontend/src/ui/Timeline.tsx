@@ -23,7 +23,7 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
       <button
         onClick={toggle}
         aria-label={playing ? 'Pause year playback' : 'Play years'}
-        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border font-mono text-xs transition-colors ${
+        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs transition-colors ${
           playing ? 'border-cyan bg-cyan/20 text-cyan' : 'border-cyan/40 text-cyan hover:bg-cyan/10'
         }`}
       >
@@ -33,8 +33,8 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
       <div className="relative flex-1 pt-3.5 pb-3">
         {/* VIIRS-era shading: from 2012 both sensors overlap; before that the record is MODIS-only */}
         <div className="pointer-events-none absolute top-[22px] right-0 h-1 rounded-r bg-cyan/25" style={{ left: at(2012) }} />
-        <div className="pointer-events-none absolute top-0 -translate-x-1/2 font-mono text-[9px] whitespace-nowrap text-cyan/80" style={{ left: at(2012) }}>
-          VIIRS ▾
+        <div className="pointer-events-none absolute top-0 -translate-x-1/2 text-[11px] whitespace-nowrap text-cyan/80" style={{ left: at(2012) }}>
+          VIIRS era ▾
         </div>
         <input
           type="range"
@@ -51,7 +51,7 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
           className="timeline-range relative w-full"
         />
         {!compact && (
-          <div className="pointer-events-none absolute right-0 bottom-0 left-0 font-mono text-[9px] text-dim">
+          <div className="pointer-events-none absolute right-0 bottom-0 left-0 text-[11px] text-dim">
             {[2001, 2005, 2010, 2015, 2020, 2025].map((y) => (
               <span key={y} className="absolute -translate-x-1/2" style={{ left: at(y) }}>
                 {y}
@@ -61,9 +61,9 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
         )}
       </div>
 
-      <div className={`shrink-0 text-right ${compact ? 'w-12' : 'w-20'}`}>
-        <div className="font-mono text-lg leading-none text-cyan tabular-nums">{year}</div>
-        {!compact && <div className="label mt-0.5">{year < 2012 ? 'MODIS only' : 'MODIS+VIIRS'}</div>}
+      <div className={`shrink-0 text-right ${compact ? 'w-14' : 'w-28'}`}>
+        <div className="readout text-[24px] text-cyan">{year}</div>
+        {!compact && <div className="label mt-0.5">{year < 2012 ? 'MODIS only' : 'MODIS and VIIRS'}</div>}
       </div>
     </footer>
   )

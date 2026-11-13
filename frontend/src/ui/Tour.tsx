@@ -1,5 +1,5 @@
 /**
- * OWNER: Agent B. B8 — ~60s guided tour (used for the demo video).
+ * OWNER: Agent B. B8/B20 — ~60s guided tour (used for the demo video), incl. Human vs natural steps.
  * It only drives the shared store (region / mode / year); the globe flies on its own.
  * Any click, tap or Esc stops it. Captions pull live numbers from api.ts.
  */
@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
 import { fetchSummary, fetchYearTotals } from './data'
-import { weekendDip } from '../charts/stats'
+import { humanLabel, weekendDip } from '../charts/stats'
 
 const TOUR_YEAR = 2019
 type Ctx = { year: number }
@@ -19,11 +19,14 @@ interface Step {
 }
 
 const app = () => useApp.getState()
-const focus = (id: string | null, mode: 'legacy' | 'harmonized' | 'difference') => () => {
+type TourMode = 'legacy' | 'harmonized' | 'human'
+const focus = (id: string | null, mode: TourMode) => () => {
   app().selectRegion(id)
   app().setMode(mode)
 }
 const pct = (v: number) => `${v.toFixed(0)}%`
+/** Area likelihoods come from the same source as the panels (cells weighted by fires). */
+const likelihood = async (year: number, id: string) => (await fetchYearTotals(year)).byRegion[id]?.human ?? 0
 
 const STEPS: Step[] = [
   {
@@ -40,51 +43,53 @@ const STEPS: Step[] = [
     },
   },
   {
-    ms: 5500,
-    go: focus(null, 'difference'),
-    text: 'In magenta: fires that the legacy record never counted.',
+    ms: 7000,
+    go: focus(null, 'human'),
+    text: 'Now: human or natural? Magenta areas are likely human-driven, ice blue likely natural. Nature has no weekends; people do.',
   },
   {
-    ms: 7000,
-    go: focus('india_china', 'difference'),
-    text: async ({ year }) => {
-      const s = await fetchSummary('india_china', year)
-      return `India & China crop belts: crop-residue burning means small fires. The legacy record undercounts them by ${pct(s.undercountPct)}.`
-    },
-  },
-  {
-    ms: 7000,
+    ms: 6500,
     go: focus('india_china', 'harmonized'),
     text: async ({ year }) => {
       const s = await fetchSummary('india_china', year)
-      const dip = weekendDip(s.weekdayCounts)
-      const rhythm = dip < -3 ? `yet these fires drop ${Math.abs(dip).toFixed(0)}% at weekends` : 'and here the weekly rhythm is weak'
-      return `Nature has no weekends, ${rhythm}. Human-influence score: ${s.humanScore.harmonized.toFixed(2)}.`
+      return `India & China crop belts: small fires from crop residue. The legacy record undercounts them by ${pct(s.undercountPct)}.`
     },
   },
   {
-    ms: 7000,
-    go: focus('boreal_na', 'harmonized'),
+    ms: 7500,
+    go: focus('india_china', 'human'),
     text: async ({ year }) => {
-      const s = await fetchSummary('boreal_na', year)
+      const [s, h] = await Promise.all([fetchSummary('india_china', year), likelihood(year, 'india_china')])
       const dip = weekendDip(s.weekdayCounts)
-      const rhythm = Math.abs(dip) < 3 ? 'barely any weekly rhythm' : `a ${Math.abs(dip).toFixed(0)}% weekend change`
-      return `Boreal North America: remote forest fires, mostly lightning. Undercount ${pct(s.undercountPct)}, and ${rhythm}.`
+      if (h >= 0.66 && dip < -3)
+        return `Crop-residue burning: a strong human rhythm. Fires drop ${Math.abs(dip).toFixed(0)}% at weekends. Human likelihood ${h.toFixed(2)}.`
+      return `Crop-residue burning: ${humanLabel(h).toLowerCase()}, with a human likelihood of ${h.toFixed(2)}.`
     },
   },
   {
-    ms: 8000,
+    ms: 7500,
+    go: focus('boreal_na', 'human'),
+    text: async ({ year }) => {
+      const [s, h] = await Promise.all([fetchSummary('boreal_na', year), likelihood(year, 'boreal_na')])
+      const dip = weekendDip(s.weekdayCounts)
+      const rhythm = Math.abs(dip) < 3 ? 'and barely any weekly rhythm' : `with a ${Math.abs(dip).toFixed(0)}% weekend change`
+      if (h < 0.4) return `Boreal North America. Lightning fires: mostly natural. Human likelihood ${h.toFixed(2)}, ${rhythm}.`
+      return `Boreal North America: ${humanLabel(h).toLowerCase()}, human likelihood ${h.toFixed(2)}, ${rhythm}.`
+    },
+  },
+  {
+    ms: 7500,
     go: focus('africa', 'harmonized'),
     text: async ({ year }) => {
       const s = await fetchSummary('africa', year)
-      const trend = s.trendSurvives ? 'Its long-term trend survives the correction.' : 'Its long-term trend changes once corrected.'
+      const trend = s.trendSurvives ? 'Its long-term trend holds after correction.' : 'Its long-term trend changes once corrected.'
       return `Sub-Saharan Africa burns more than anywhere else, and the legacy record undercounts it by ${pct(s.undercountPct)}. ${trend}`
     },
   },
   {
     ms: 8000,
-    go: focus(null, 'difference'),
-    text: 'The historical fire record systematically undercounts small fires. Thermora shows where, by how much, and what it means.',
+    go: focus(null, 'human'),
+    text: 'The corrected record counts the small fires the old one missed, and shows where fire is likely human-driven or natural. Search any place to explore.',
   },
 ]
 
@@ -159,9 +164,9 @@ export default function Tour() {
         >
           <div className="panel px-4 py-3 text-center">
             <div className="label mb-1 flex justify-between">
-              <span>Guided tour {region ? `· ${region.name}` : '· Global'}</span>
+              <span>{region ? region.name : 'Global view'}</span>
               <span>
-                {cap.i + 1}/{STEPS.length}
+                {cap.i + 1} of {STEPS.length}
               </span>
             </div>
             <p className="text-sm leading-relaxed md:text-base">{cap.text}</p>
@@ -174,7 +179,7 @@ export default function Tour() {
                 transition={{ duration: STEPS[cap.i].ms / 1000, ease: 'linear' }}
               />
             </div>
-            <div className="label mt-1.5">click anywhere to exit</div>
+            <div className="label mt-1.5">Click anywhere to leave the tour</div>
           </div>
         </motion.div>
       )}
