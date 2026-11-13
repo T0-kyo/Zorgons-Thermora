@@ -79,6 +79,7 @@ h3 {
   background: #000;
   border-right: 1px solid var(--color-line);
 }
+.column-right { border-right: 0; border-left: 1px solid var(--color-line); }
 .column h1 { font-size: 46px; line-height: 1; letter-spacing: -0.01em; }
 .column h1 span { color: inherit; }
 .column h2 { font-size: 30px; }

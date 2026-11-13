@@ -1,6 +1,8 @@
 # Thermora design system — "a reading column beside a live planet"
 
 > **Update 15:50 (editorial refactor, A12).** The twist leads: the app opens in **Human or natural**, under the question **"Who lit it?"**. The signature control is the **Spectrum** (`src/ui/Spectrum.tsx`): a histogram of the year's fires by area human-likelihood with two handles that filter the globe live (keys N / M / U / A, H toggles the colouring). Layout is one opaque **editorial column** (left) + the **full-bleed globe**, with controls set on the globe as type. No floating glass boxes. Display type is **Gloock** (high-contrast serif) for `h1`/`h2`: the question, region and place names. UI and numbers stay in Archivo. Inside `.column` and `.bare`, `.panel` dissolves into the page (no background, no border). Hierarchy comes from type and hairline rules (`.rule`). Mode names: "Human or natural", "Corrected record", "MODIS only".
+>
+> **Update 16:05.** Three-column desktop layout: reading column (left) · globe · **Regions menu (right)**. Every menu collapses: left and right fold into a 44px rail with a vertical label (`src/ui/Rail.tsx`, keys `[` and `]`), and the spectrum folds away leaving the year ruler (key `\`). Open/closed state is remembered per browser.
 
 
 Applies to both agents. Tokens live in `src/index.css`; this file explains them and lists the rules.
