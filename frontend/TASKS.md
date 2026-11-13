@@ -22,7 +22,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 
 - 🟢 A9 Cinematic camera: sunrise intro, swoop fly-to, region drift, toggle flare
 - 🟢 A11 Human vs natural globe mode (`mode: 'human'`), click-to-pick place, place marker + fly-to, place search + data APIs (progress / daily / day)
-- 🟡 A12 Editorial refactor (team request): editorial column + full-bleed globe, Spectrum instrument (human/natural filter, histogram, keys), Gloock display, default mode `human`, solid surfaces. Branch `frontend/globe-editorial`
+- 🟢 A12 Editorial refactor (team request): editorial column + full-bleed globe, Spectrum instrument (human/natural filter, histogram, keys), Gloock display, default mode `human`, solid surfaces. Branch `frontend/globe-editorial`
 - 🟡 A10 Backend contract: `frontend/API_CONTRACT.md` (waiting on backend decisions), then swap `api.ts`
 - 🟢 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
 
