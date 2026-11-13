@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* Design tokens — mission-control dark. Use these via Tailwind classes
+   (bg-ink, text-fire, border-line …) or as CSS vars. Change here, not inline. */
+@theme {
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-ink: #04060b;          /* page background */
+  --color-panel: rgb(10 15 26 / 0.62); /* glass panels */
+  --color-line: rgb(120 180 255 / 0.16); /* hairline borders */
+  --color-dim: #7d8aa3;          /* secondary text */
+  --color-text: #e6edf7;         /* primary text */
+
+  --color-fire: #ff8a3d;         /* fire / legacy record */
+  --color-fire-hot: #ffd27a;     /* hottest */
+  --color-cyan: #5ad1ff;         /* harmonized / corrected */
+  --color-missed: #ff3d81;       /* fires the legacy record missed */
+  --color-ok: #4ade80;           /* verdict: survives */
+  --color-warn: #fbbf24;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Reusable panel look: glass + hairline + corner brackets */
+.panel {
+  background: var(--color-panel);
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 6px;
+  position: relative;
+}
+.panel::before, .panel::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-cyan);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.panel::before { top: -1px; left: -1px; border-top: 1px solid; border-left: 1px solid; border-top-left-radius: 6px; }
+.panel::after { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; border-bottom-right-radius: 6px; }
+
+/* Small uppercase telemetry label */
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+}
