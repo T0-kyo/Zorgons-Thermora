@@ -6,6 +6,8 @@ They cannot talk to each other directly. **This file and `TASKS.md` are how they
 - **Agent A** — globe & 3D (directed by the teammate who set up this repo)
 - **Agent B** — app UI, panels, charts (directed by the second frontend teammate)
 
+**Agent B: if you are new to this project, read `frontend/AGENT_B_BRIEFING.md` first.** It has the full context (hackathon, science, product, your role).
+
 ## Before you start any work
 1. `git fetch origin` and read the latest `frontend/TASKS.md` on `submain` **and** on the other agent's open branches.
 2. Pick only tasks assigned to you. Mark them `🟡 in progress` in `TASKS.md` in your first commit.
