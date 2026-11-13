@@ -13,8 +13,12 @@ let timers: number[] = []
 const clearTimers = () => { timers.forEach(clearTimeout); timers = [] }
 
 /** Narrow/portrait screens need more distance to keep the whole globe in frame. */
+let viewAspect = window.innerWidth / Math.max(1, window.innerHeight)
+/** The globe's own box aspect (set by GlobeView when its container resizes). */
+export function setViewAspect(a: number) { viewAspect = a }
+
 export function fitAltitude(v: View): View {
-  const aspect = window.innerWidth / Math.max(1, window.innerHeight)
+  const aspect = viewAspect
   const k = aspect >= 1.2 ? 1 : aspect >= 0.8 ? 1.25 : 1.7
   return { ...v, altitude: v.altitude * k }
 }

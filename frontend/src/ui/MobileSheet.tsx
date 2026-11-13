@@ -6,7 +6,6 @@ import { regionById } from '../shared/regions'
 import { PanelBody } from './SpotlightPanel'
 import { fmtPct, useProgress, useYearTotals, targetKey } from './data'
 import { useTarget } from './useTarget'
-import MapLegend from './HumanLegend'
 import Timeline from './Timeline'
 
 function Peek() {
@@ -61,7 +60,7 @@ export default function MobileSheet() {
 
   return (
     <div className="pointer-events-auto space-y-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-      {!open && <MapLegend className="w-auto" />}
+      {/* legend replaced by the Spectrum instrument above the sheet */}
       <Timeline compact />
       <motion.div
         className="panel overflow-hidden rounded-b-none"

@@ -83,7 +83,9 @@ async function regionLayout(regionId: string) {
     if (!inside(lng, lat)) continue
     const small = r()
     // small-fire cells (crop/pasture burning) lean human; big remote fires lean natural
-    const human = Math.min(0.98, Math.max(0.03, (P[regionId]?.human ?? 0.5) + (small - 0.5) * 0.45 + gauss(r) * 0.07))
+    // soft-clipped so values approach 0/1 smoothly instead of piling up at the ends
+    const raw = (P[regionId]?.human ?? 0.5) + (small - 0.5) * 0.4 + gauss(r) * 0.07
+    const human = 0.02 + 0.96 / (1 + Math.exp(-(raw - 0.5) * 5.2))
     cells.push({ lat, lng, w: 0.3 + r() ** 2 * 3, small, human: +human.toFixed(2) })
   }
   layoutCache.set(regionId, cells)

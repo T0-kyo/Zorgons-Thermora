@@ -25,7 +25,7 @@ import type { FireCell, Mode } from '../shared/types'
 import { YEARS } from '../shared/types'
 import { makeCloudMaterial, makeEarthMaterial } from './earthMaterials'
 import { FireGlow } from './FireGlow'
-import { fitAltitude, setDrift, sunriseIntro, swoopTo } from './cinematics'
+import { fitAltitude, setDrift, setViewAspect, sunriseIntro, swoopTo } from './cinematics'
 
 /** 'glow' = flickering ember points (default, one draw call). 'hex' = 3D hex columns (fallback). */
 const FIRE_STYLE: 'glow' | 'hex' = 'glow'
@@ -75,6 +75,8 @@ export default function GlobeView() {
   const playing = useApp((s) => s.playing)
   const cameraTarget = useApp((s) => s.cameraTarget)
   const place = useApp((s) => s.place)
+  const humanRange = useApp((s) => s.humanRange)
+  const boxRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const [allCells, setAllCells] = useState<FireCell[]>([])
   const [outline, setOutline] = useState<Feature[]>([])
@@ -85,14 +87,19 @@ export default function GlobeView() {
   const sunDir = useMemo(() => new THREE.Vector3(1, 0, 0), [])
   const earthMaterial = useMemo(() => makeEarthMaterial(sunDir), [sunDir])
 
+  // size to our own box (the layout decides where the globe sits), not the window
   useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
     let t: number | undefined
-    const onResize = () => {
+    const ro = new ResizeObserver(([e]) => {
       clearTimeout(t)
-      t = window.setTimeout(() => setSize({ w: window.innerWidth, h: window.innerHeight }), 120)
-    }
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+      const { width, height } = e.contentRect
+      setViewAspect(width / Math.max(1, height))
+      t = window.setTimeout(() => setSize({ w: Math.round(width), h: Math.round(height) }), 60)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
   }, [])
 
   // keyboard shortcut (until the toggle has the button): H = Human vs natural on/off
@@ -186,6 +193,7 @@ export default function GlobeView() {
   }, [glow, ready, allCells, glowScale])
   useEffect(() => { glow?.setMode(mode) }, [glow, mode])
   useEffect(() => { glow?.setFocus(regionId) }, [glow, regionId, ready])
+  useEffect(() => { glow?.setRange(humanRange[0], humanRange[1]) }, [glow, humanRange, ready])
 
   const hottest = useMemo(
     () => (regionId ? [...cells].sort((a, b) => b.harmonized - a.harmonized).slice(0, 5) : []),
@@ -323,6 +331,7 @@ export default function GlobeView() {
   const strokeColor = useCallback(() => C.cyan, [])
 
   return (
+    <div ref={boxRef} className="absolute inset-0">
     <Globe
       ref={ref}
       width={size.w}
@@ -366,5 +375,6 @@ export default function GlobeView() {
       ringRepeatPeriod={1100}
       ringAltitude={0.006}
     />
+    </div>
   )
 }

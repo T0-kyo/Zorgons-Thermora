@@ -9,9 +9,9 @@ import { useUi } from './uiStore'
 
 /** 'difference' stays supported by the globe but is no longer offered in the UI (team decision, B12). */
 const MODES: { id: Mode; label: string; short: string; on: string; pill: string }[] = [
-  { id: 'legacy', label: 'Legacy (MODIS)', short: 'Legacy', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
-  { id: 'harmonized', label: 'Harmonized', short: 'Harmonized', on: 'text-cyan', pill: 'bg-cyan/15 border-cyan/50' },
-  { id: 'human', label: 'Human vs natural', short: 'Human vs natural', on: 'text-missed', pill: 'bg-missed/15 border-missed/50' },
+  { id: 'human', label: 'Human or natural', short: 'Human or natural', on: 'text-missed', pill: 'bg-missed/15 border-missed/50' },
+  { id: 'harmonized', label: 'Corrected record', short: 'Corrected', on: 'text-cyan', pill: 'bg-cyan/15 border-cyan/50' },
+  { id: 'legacy', label: 'MODIS only', short: 'MODIS only', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
 ]
 
 export function ModeToggle({ compact = false }: { compact?: boolean }) {
@@ -50,7 +50,7 @@ export function ModeToggle({ compact = false }: { compact?: boolean }) {
 
 const fmtDeg = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? pos : neg}`
 
-function UtcClock() {
+export function UtcClock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)

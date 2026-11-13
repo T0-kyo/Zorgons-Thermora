@@ -28,22 +28,12 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
         <span className="label">Global view</span>
         <span className="readout text-[20px]">{year}</span>
       </div>
-      <h1 className={`mt-1 leading-snug ${compact ? 'text-[18px]' : 'text-[20px]'}`}>
-        {human ? (
-          <>
-            Where is fire <span className="text-missed">likely human-driven</span>, and where natural?
-          </>
-        ) : (
-          <>
-            How much of Earth’s fire has the historical record <span className="text-missed">missed</span>?
-          </>
-        )}
-      </h1>
+      <h1 className={compact ? 'mt-1 text-[26px]' : 'mt-2'}>{human ? 'Who lit it?' : 'What did the old record miss?'}</h1>
       {!compact && (
-        <p className="mt-2 text-[13.5px] leading-relaxed text-dim">
+        <p className="mt-3 max-w-[36ch] text-[15px] leading-relaxed text-dim">
           {human
-            ? 'Nature has no weekends. Where fire follows the working week, people are likely behind it. Each area gets a likelihood, never a verdict on a single fire.'
-            : 'NASA’s MODIS satellites have logged fires since 2000. VIIRS, flying since 2012, sees small fires MODIS cannot. We measure the gap, correct the long record, and show where it changes the story.'}
+            ? 'Nature keeps no calendar. People do. Where fire follows the working week, people are likely behind it. Each area gets a likelihood, never a verdict on one fire.'
+            : 'MODIS has logged fires since 2000. VIIRS, flying since 2012, sees small fires MODIS cannot. We measure the gap, correct the long record, and show where it changes the story.'}
         </p>
       )}
 

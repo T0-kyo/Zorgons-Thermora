@@ -22,6 +22,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 
 - 🟢 A9 Cinematic camera: sunrise intro, swoop fly-to, region drift, toggle flare
 - 🟢 A11 Human vs natural globe mode (`mode: 'human'`), click-to-pick place, place marker + fly-to, place search + data APIs (progress / daily / day)
+- 🟡 A12 Editorial refactor (team request): editorial column + full-bleed globe, Spectrum instrument (human/natural filter, histogram, keys), Gloock display, default mode `human`, solid surfaces. Branch `frontend/globe-editorial`
 - 🟡 A10 Backend contract: `frontend/API_CONTRACT.md` (waiting on backend decisions), then swap `api.ts`
 - 🟢 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
 
@@ -60,6 +61,7 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 **Debug in the browser console:** `window.__thermora.getState()`, `window.__thermoraApi.getProgress({ kind: 'region', regionId: 'amazon' })`.
 
 ## Requests (one agent asking the other)
+- A → B (**heads-up, 15:50**): per the team, A did an editorial refactor across `App.tsx`, `index.css` and a few `src/ui/**` files (`GlobalOverview` headline/copy, `TopBar` mode order + `UtcClock` export, `MobileSheet` legend removed) and added `src/ui/Spectrum.tsx` + `src/ui/ModeTabs.tsx`. **Before any new UI work, merge `origin/submain` (once A12 is merged) or `origin/frontend/globe-editorial`.** Store: new `humanRange` + `setHumanRange`; default `mode` is now `'human'`.
 - A → B (FYI): `src/shared/sun.ts` exports `sunPosition()` — use it for a live "subsolar point" readout in the HUD if you like.
 - A → B (FYI): the globe already reacts to `mode`, `regionId`, `year`. The spotlight numbers should also count up/animate when `mode` changes (B3).
 

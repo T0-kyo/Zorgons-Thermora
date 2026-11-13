@@ -27,6 +27,8 @@ interface AppState {
   date: string | null
   /** days pinned for side-by-side comparison (max 3) */
   compareDates: string[]
+  /** spectrum filter: only fires whose area human likelihood is within [lo, hi] are lit (0–1) */
+  humanRange: [number, number]
 
   selectRegion: (id: string | null) => void
   setMode: (m: Mode) => void
@@ -39,11 +41,13 @@ interface AppState {
   setDate: (d: string | null) => void
   toggleCompare: (d: string) => void
   clearCompare: () => void
+  setHumanRange: (r: [number, number]) => void
 }
 
 export const useApp = create<AppState>((set) => ({
   regionId: null,
-  mode: 'legacy',
+  // the twist first: land directly in Human vs natural
+  mode: 'human',
   year: 2019,
   playing: false,
   touring: false,
@@ -51,6 +55,7 @@ export const useApp = create<AppState>((set) => ({
   place: null,
   date: null,
   compareDates: [],
+  humanRange: [0, 1],
 
   // changing region drops the place and any selected day
   selectRegion: (regionId) => set({ regionId, place: null, date: null, compareDates: [] }),
@@ -70,6 +75,7 @@ export const useApp = create<AppState>((set) => ({
         : [...st.compareDates, d].slice(-3),
     })),
   clearCompare: () => set({ compareDates: [] }),
+  setHumanRange: (r) => set({ humanRange: [Math.max(0, Math.min(r[0], r[1])), Math.min(1, Math.max(r[0], r[1]))] }),
 }))
 
 // Debug handle (handy for both agents + demo rehearsal): window.__thermora.getState() / .setState({ mode: 'human' })

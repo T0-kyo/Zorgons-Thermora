@@ -25,11 +25,15 @@ const vertex = /* glsl */ `
   uniform float uFocus;
   uniform float uPixelRatio;
   uniform float uFlare;
+  uniform vec2 uRange;
   varying float vI;
   varying float vDim;
   varying float vHuman;
   void main() {
     vHuman = aHuman;
+    // spectrum filter: fires outside the chosen human-likelihood band fade to a faint trace
+    float inBand = step(uRange.x - 0.0001, aHuman) * step(aHuman, uRange.y + 0.0001);
+    float bandK = mix(0.06, 1.0, inBand);
     float v = mix(aLeg, aHar, uMix);
     float val = mix(v, aDiff, uDiff);
     float flick = 0.82 + 0.18 * sin(uTime * (2.5 + aSeed * 5.0) + aSeed * 50.0)
@@ -37,7 +41,7 @@ const vertex = /* glsl */ `
     float dim = (uFocus < 0.0 || abs(aRegion - uFocus) < 0.5) ? 1.0 : 0.18;
     float flare = 1.0 + uFlare * (0.7 + 0.6 * aSeed);
     vI = val * flick * flare;
-    vDim = dim;
+    vDim = dim * bandK;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     // grow with zoom, but cap so sprites don't get clipped by the globe surface up close
     float zoom = min(320.0 / -mv.z, 1.6);
@@ -95,6 +99,7 @@ export class FireGlow {
         uDiff: { value: 0 },
         uFlare: { value: 0 },
         uHuman: { value: 0 },
+        uRange: { value: new THREE.Vector2(0, 1) },
         cNatural: { value: v3(colors.natural) },
         uTime: { value: 0 },
         uFocus: { value: -1 },
@@ -179,6 +184,10 @@ export class FireGlow {
     this.target.mix = mode === 'legacy' ? 0 : 1
     this.target.diff = mode === 'difference' ? 1 : 0
     this.target.human = mode === 'human' ? 1 : 0
+  }
+
+  setRange(lo: number, hi: number) {
+    this.mat.uniforms.uRange.value.set(lo, hi)
   }
 
   setFocus(regionId: string | null) {
