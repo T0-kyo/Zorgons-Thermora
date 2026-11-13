@@ -335,7 +335,7 @@ export default function CalendarView({ target }: { target: Target }) {
         <span>More fires</span>
       </div>
       <p className="mt-1 text-[12px] text-dim">
-        Shaded by the {mode === 'legacy' ? 'legacy' : 'corrected'} record. Arrow keys move, Enter picks a day.
+        Shaded by the harmonized record (MODIS + VIIRS). Arrow keys move, Enter picks a day.
       </p>
 
       <AnimatePresence initial={false}>{date && <DayCard key={date} target={target} date={date} />}</AnimatePresence>

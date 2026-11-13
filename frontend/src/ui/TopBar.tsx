@@ -10,15 +10,14 @@ import { useUi } from './uiStore'
 /** 'difference' stays supported by the globe but is no longer offered in the UI (team decision, B12). */
 const MODES: { id: Mode; label: string; short: string; on: string; pill: string }[] = [
   { id: 'human', label: 'Human or natural', short: 'Human or natural', on: 'text-missed', pill: 'bg-missed/15 border-missed/50' },
-  { id: 'harmonized', label: 'Corrected record', short: 'Corrected', on: 'text-cyan', pill: 'bg-cyan/15 border-cyan/50' },
-  { id: 'legacy', label: 'MODIS only', short: 'MODIS only', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
+  { id: 'harmonized', label: 'Harmonized (MODIS + VIIRS)', short: 'Harmonized', on: 'text-cyan', pill: 'bg-cyan/15 border-cyan/50' },
 ]
 
 export function ModeToggle({ compact = false }: { compact?: boolean }) {
   const mode = useApp((s) => s.mode)
   const setMode = useApp((s) => s.setMode)
   // the old 'difference' mode (e.g. from a saved state) shows as Harmonized
-  const shown: Mode = mode === 'difference' ? 'harmonized' : mode
+  const shown: Mode = mode === 'human' ? 'human' : 'harmonized'
   return (
     <div role="radiogroup" aria-label="Fire record" className="flex rounded border border-line bg-ink/40 p-0.5">
       {MODES.map((m) => {

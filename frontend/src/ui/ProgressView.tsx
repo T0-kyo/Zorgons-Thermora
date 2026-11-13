@@ -92,7 +92,7 @@ export default function ProgressView({ target }: { target: Target }) {
       ) : (
         <div>
           <div className="label">
-            Fire activity since {p.years.first}, {mode === 'legacy' ? 'legacy record' : 'corrected record'}
+            Fire activity since {p.years.first}, harmonized record
           </div>
           <div className="flex items-baseline gap-3">
             <CountUp

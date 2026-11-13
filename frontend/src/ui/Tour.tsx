@@ -31,11 +31,6 @@ const likelihood = async (year: number, id: string) => (await fetchYearTotals(ye
 const STEPS: Step[] = [
   {
     ms: 6500,
-    go: focus(null, 'legacy'),
-    text: 'Since 2000, NASA’s MODIS satellites have built the world’s long-term fire record. This is what it shows.',
-  },
-  {
-    ms: 6500,
     go: focus(null, 'harmonized'),
     text: async ({ year }) => {
       const t = await fetchYearTotals(year)
