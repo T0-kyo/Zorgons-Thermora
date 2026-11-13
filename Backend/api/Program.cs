@@ -1,10 +1,19 @@
+using api.Repositories;
 using api.Middleware;
+using api.Services;
+using api.Config;
 using Serilog;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
 
+
+builder.Services.Configure<DataSettings>(
+    builder.Configuration.GetSection(DataSettings.SectionName));
+
+builder.Services.AddSingleton<IDuckDbService, DuckDbService>();
+builder.Services.AddScoped<IDataRepository, DuckDbRepository>();
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -24,11 +33,14 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .AllowAnyHeader()
     .AllowAnyMethod()));
 
+builder.Services.AddControllers();
 
 
 var app = builder.Build();
 
 
+
+app.MapControllers();
 
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();

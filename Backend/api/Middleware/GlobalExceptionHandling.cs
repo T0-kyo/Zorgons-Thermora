@@ -33,7 +33,16 @@ public class GlobalExceptionHandler : IExceptionHandler
         }
 
         problemDetails.Status = httpContext.Response.StatusCode;
-        _logger.LogError(exception, "An exception occurred: {ExceptionType}", exception.GetType().Name);
+        
+        if (httpContext.Response.StatusCode >= 500)
+        {
+            _logger.LogError(exception, "An exception occurred: {ExceptionType}", exception.GetType().Name);
+        }
+        else
+        {
+            _logger.LogWarning("Client error: {Message} - Path: {Path}", exception.Message, httpContext.Request.Path);
+        }        
+        
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         
         return true;
