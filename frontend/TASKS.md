@@ -16,9 +16,11 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - 🟢 A2 Fire layer: glowing "ember" points (FireGlow.ts, one draw call; hex columns kept as fallback via FIRE_STYLE) from `getCells()`, size + brightness by count, per `mode` (legacy / harmonized / difference=`missed` in magenta)
 - 🟢 A3 Toggle animation: hexes grow/shrink smoothly when `mode` changes
 - 🟢 A4 Region focus: glowing outline of selected region, only its hexes shown, pulsing rings on hottest cells
-- 🟡 A5 Year playback (PR: frontend/globe-playback): react to `year`/`playing`, smooth transitions between years
+- 🟢 A5 Year playback: react to `year`/`playing`, smooth transitions between years
 - 🟡 A6 Performance + mobile: done: fewer hexes, DPR cap, pause when hidden. Todo: mobile detail level
-- 🟡 A7 Globe hooks for the tour (PR: frontend/globe-playback) — see Requests
+- 🟢 A7 Globe hooks for the tour — see Requests
+
+- 🟡 A8 Design system refresh (DESIGN.md, tokens, Archivo) + Docker (`frontend/Dockerfile`, `docker-compose.yml`)
 
 ## Agent B — UI, panels, charts (`src/ui/`, `src/charts/`)
 - 🟡 B1 (branch: frontend/ui-agent-b) Top bar: brand, Legacy / Harmonized / Missed-fires toggle (segmented control, clear active state), live UTC clock — subsolar-point readout to add once `src/shared/sun.ts` (Agent A) is merged
@@ -42,7 +44,10 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
   - Any manual drag/zoom on the globe calls `stopTour()` automatically.
   - Year playback: just step `setYear()` every ~1.2s while `playing`; the globe pre-loads years and animates hex heights on a fixed cross-year scale (growth/decline is real, not re-normalised).
 
+- A → B (**design refresh, please do next**): tokens and fonts changed globally (Archivo replaces Space Grotesk/JetBrains Mono; `.label` is now sentence-case condensed; `.panel` lost its corner brackets; big `font-mono` numbers become expanded readouts automatically). Your components still hard-code a few things the new system forbids. Follow `frontend/DESIGN.md` rules 1–7 in `src/ui/**` and `src/charts/**`: remove `uppercase`/`tracking-*` classes, split `·`-joined strings into separate elements, drop em-dash labels and `→`, use `.wordmark` for the brand, sentence-case toggle labels, badge copy "Sample data, not results".
+
 ## Contract changes (shared/ edits that rename/remove things)
+- A: design tokens in `src/index.css` changed **values** only (names kept). Fonts: `@fontsource/space-grotesk` and `@fontsource/jetbrains-mono` removed, `@fontsource-variable/archivo` added (imported in `main.tsx`).
 - _none yet_
 
 ## Notes for the backend

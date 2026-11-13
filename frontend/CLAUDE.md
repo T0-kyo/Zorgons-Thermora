@@ -39,12 +39,13 @@ If you need something in the other agent's area, **don't change it — add a req
 - Never touch anything outside `frontend/` (backend/data folders belong to other teammates).
 
 ## Tech
-Vite + React 19 + TypeScript, Tailwind v4 (tokens in `src/index.css` `@theme`), react-globe.gl / three.js, zustand, recharts, framer-motion.
+Vite + React 19 + TypeScript, Tailwind v4 (tokens in `src/index.css` `@theme`), react-globe.gl / three.js, zustand, recharts, framer-motion. Font: `@fontsource-variable/archivo` (wdth axis).
 `npm run dev` · `npm run build` (must pass before every push — it type-checks).
 
-## Design language — "mission control, real-time Earth"
-- Dark only. Globe is the hero; UI floats over it in `.panel` glass cards with cyan corner brackets.
-- Colors (use the Tailwind tokens, no raw hex in components): `fire` = legacy record, `cyan` = harmonized/corrected, `missed` (magenta) = fires the legacy record missed, `ok`/`warn` for verdicts.
-- Type: Space Grotesk for text, JetBrains Mono for numbers & `.label` telemetry captions (uppercase, letter-spaced).
-- Motion: smooth and purposeful (fly-to ~1.6s, panels slide 250–350ms). Numbers count up when the mode toggles — **the toggle must visibly change numbers**.
+## Design language — "instrument plate over a live Earth"
+**Read `frontend/DESIGN.md` before any visual work. It's binding.** In short:
+- Dark only. The globe is the hero; UI sits on smoked-glass `.panel` plates with hairlines and no corner brackets.
+- One typeface: **Archivo** (variable width + weight). Expanded for the wordmark and big readouts, normal for text, condensed `.label` for captions. **No monospace, no all-caps, no `·`-joined meta strings, no em-dash labels, no `→` on buttons.**
+- Colors via tokens only: `fire` = legacy record, `cyan` (pale VIIRS ice) = harmonized/corrected, `missed` (magenta) = fires the legacy record missed, `ok`/`warn` for verdicts.
+- Motion only in response to user actions (and the globe intro). Numbers count up when the mode toggles; **the toggle must visibly change numbers**.
 - Must work on a phone (panels become a bottom sheet) and on a weak laptop.

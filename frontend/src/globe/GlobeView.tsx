@@ -36,7 +36,7 @@ const RES_REGION = 3
 const MAX_HEX_ALT = { global: 0.07, region: 0.09 }
 
 // token colours (keep in sync with index.css @theme)
-const C = { fire: [255, 62, 18], hot: [255, 186, 96], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#5ad1ff' }
+const C = { fire: [255, 62, 18], hot: [255, 186, 96], missedLo: [150, 30, 80], missed: [255, 61, 129], cyan: '#8fd3e8' }
 
 interface Hex {
   points: FireCell[]
@@ -256,7 +256,7 @@ export default function GlobeView() {
     const h = d as Hex
     const leg = h.points.reduce((s, c) => s + c.legacy, 0)
     const har = h.points.reduce((s, c) => s + c.harmonized, 0)
-    return `<div style="font:11px 'JetBrains Mono',monospace;background:rgba(10,15,26,.88);border:1px solid rgba(120,180,255,.2);padding:6px 8px;border-radius:4px;color:#e6edf7">
+    return `<div style="font:12px 'Archivo Variable',sans-serif;font-variant-numeric:tabular-nums;background:rgba(9,11,15,.9);border:1px solid rgba(236,230,216,.14);padding:6px 8px;border-radius:3px;color:#ece6d8">
       legacy ${leg.toLocaleString()}<br/>harmonized ${har.toLocaleString()}<br/>
       <span style="color:#ff3d81">missed +${(har - leg).toLocaleString()}</span></div>`
   }, [])
@@ -280,7 +280,7 @@ export default function GlobeView() {
       backgroundImageUrl={`${import.meta.env.BASE_URL}textures/night-sky.png`}
       globeMaterial={earthMaterial}
       showAtmosphere
-      atmosphereColor={C.cyan}
+      atmosphereColor="#5ab8ff"
       atmosphereAltitude={0.16}
       onGlobeReady={onReady}
       // fire hexes
