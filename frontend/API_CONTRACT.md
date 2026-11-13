@@ -1,176 +1,241 @@
-# What the frontend needs from the backend
+# Thermora — API contract (frontend ⇄ backend)
 
-Owner of this file: frontend (Agent A). Backend team: please reply in the "Decisions" section at the bottom, or tell us directly.
-The frontend already runs on mock data with exactly these shapes (`src/shared/types.ts`, `src/shared/api.ts`). When your endpoints match, we set `VITE_API_URL` and nothing else in the UI changes.
+**Status (Fri 16:40):** the frontend is finished against mock data with exactly these shapes. When the backend serves them, we set `VITE_API_URL=<your base URL>` and **nothing else in the UI changes**. Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
 
----
-
-## 1. Decisions we need first (blocking)
-
-1. **The final region list** (5–8). For each: `id` (slug), display name, and the **boundary you actually used in the analysis** (GeoJSON polygon/multipolygon, or a lat/lng bounding box). We currently assume:
-   `africa` Sub-Saharan Africa · `amazon` Amazon Basin · `seasia` Southeast Asia · `boreal_na` Boreal North America · `boreal_eu` Boreal Eurasia · `australia` Australia · `med` Mediterranean · `india_china` India & China crop belts.
-   Is the Nile Delta (rice-straw burning) in or out?
-2. **Year range** you'll serve (we assume 2001–2025; VIIRS overlap from 2012).
-3. **Grid for the map cells**: a fixed lat/lng grid (e.g. 0.5° or 1°) or H3 (resolution 3 or 4). Max about **5,000 cells per year for the whole world**, so the globe stays smooth.
-4. **Definitions**, so the numbers on screen mean the same thing as in your slides:
-   - `undercountPct` = (harmonized − legacy) / legacy × 100? Over which period: the selected year, or the whole record?
-   - The confidence interval level (95%?).
-   - `humanScore`: probability 0–1 from the weekly-cycle test. "legacy" = computed on raw MODIS, "harmonized" = after correction.
-   - `weekdayCounts`: for the selected year or all years? Weekday in **local solar time** (not UTC), please, or the weekend signal smears across time zones.
-   - `trend` units: raw counts, or an index (2001 = 100)?
-5. **Where it runs** for the demo (URL), and **CORS** allowed for our frontend origin (Vercel URL + `http://localhost:5173` + `http://localhost:8080`).
-
-> The current `GtoDto` (satellite name, lat/lng, overpass time) looks like satellite overpass data. The frontend doesn't need raw detections or overpasses, only the **aggregates below**. If overpass data is meant for something else, tell us and we'll plan for it.
+Backend team: the **decisions in section 1** block us. Please answer them at the bottom of this file or tell us directly.
 
 ---
 
-## 2. Endpoints (all `GET`, JSON, gzip on)
+## 0. At a glance
 
-### `GET /regions`
+| # | Endpoint | Required? | What it powers | How often we call it |
+|---|---|---|---|---|
+| 1 | `GET /cells?year=` (`&region=`) | **Required** | the fires on the globe, the human/natural spectrum, region list values | once per year (we preload all 25 years for smooth playback) |
+| 2 | `GET /regions/{id}/summary?year=` | **Required** | "Region findings": undercount, human score, weekly rhythm, trend | when a region is opened / year changes |
+| 3 | `GET /progress?target` | **Required** | Progress view: "how much worse since 2001" | when a region/place is opened |
+| 4 | `GET /daily?year=&target` | **Required** | Calendar view: every day of the year | when the calendar opens / year changes |
+| 5 | `GET /day?date=&target` | Optional | day card + compare days (we can derive it from `/daily`) | when a day is clicked |
+| 6 | `GET /regions` | Optional | region names/blurbs/outlines (we have local defaults) | once |
+| 7 | `GET /summary?year=` | Optional | global numbers (today we sum `/cells`) | once per year |
+| 8 | `GET /meta` | Optional | "Methods" panel: years, data version, sources | once |
+
+`target` is either **`region=<id>`** or a place: **`lat=<deg>&lng=<deg>&radiusKm=<km>`** (aggregate everything within that radius). Place search itself happens in the frontend (offline gazetteer + OpenStreetMap). You only receive coordinates.
+
+---
+
+## 1. Decisions we need from you (blocking)
+
+1. **Region list (5–8):** for each one, an `id` (slug), a display name, and the boundary used in the analysis (GeoJSON or a bbox). Our placeholders: `africa`, `amazon`, `seasia`, `boreal_na`, `boreal_eu`, `australia`, `med`, `india_china`. Is the Nile Delta in?
+2. **Years served:** we assume 2001–2025.
+3. **Map grid:** 0.5° / 1° lat-lng grid or H3 res 3–4. **Max ~3,000 cells per year worldwide** (we preload all years).
+4. **Definitions,** so the screen matches the slides:
+   - **undercount** = (harmonized − legacy) / legacy × 100, for the selected year?
+   - **CI level** for the undercount (95%?)
+   - **human likelihood** (0–1): output of the weekly-cycle test. Per cell if there are enough detections, else the region's value.
+   - **weekday** basis: **local solar time** (acquisition UTC + longitude/15 h), not UTC.
+   - **trend** units: raw fire counts, or an index (2001 = 100)?
+5. **Demo hosting:** your base URL, and CORS for `http://localhost:5173`, `http://localhost:8080` and our deploy URL. **Or** choose Plan B (static files, section 6), which is safest on venue Wi-Fi.
+
+---
+
+## 2. Conventions
+
+- `GET` only, JSON, **camelCase** property names (the ASP.NET default), UTF-8, gzip/brotli on.
+- Numbers are plain numbers (no strings). Lat/lng in degrees, rounded to **2 decimals**. Likelihoods 0–1 with **2 decimals**. Percentages are numbers like `18.3`, meaning 18.3%.
+- Dates are `YYYY-MM-DD` in **local solar time**.
+- **Vegetation fires only** everywhere: STA mask applied (gas flares, power plants and volcanoes removed), VIIRS Type 0.
+- **legacy** = the original MODIS record. **harmonized** = MODIS corrected to be consistent with VIIRS (the record the app treats as "real").
+- Data never changes during the demo, so send `Cache-Control: public, max-age=3600`.
+- Errors: `400` bad parameter, `404` unknown region, body `{ "error": "message" }`.
+
+---
+
+## 3. Required endpoints
+
+### 3.1 `GET /cells?year=2019` · `GET /cells?year=2019&region=amazon`
+One row per grid cell with vegetation fires in that year. Without `region`, return all study regions.
+
+```ts
+interface FireCell {
+  lat: number         // cell centre
+  lng: number
+  regionId: string    // which study region the cell belongs to
+  legacy: number      // fire detections in the MODIS record, that year
+  harmonized: number  // same cell after harmonization (>= legacy in practice)
+  human: number       // 0–1 likelihood that fire here is human-driven (weekly-cycle test)
+}
+```
 ```json
 [
-  {
-    "id": "amazon",
-    "name": "Amazon Basin",
-    "center": { "lat": -7, "lng": -60, "altitude": 1.35 },
-    "blurb": "Deforestation fires and pasture clearing.",
-    "geometry": { "type": "MultiPolygon", "coordinates": [] }
-  }
+  { "lat": -4.5, "lng": -61.25, "regionId": "amazon", "legacy": 812, "harmonized": 968, "human": 0.81 }
 ]
 ```
-`center.altitude` is a camera distance in globe radii. If you don't want to own it, omit it and we'll keep our own values. `geometry` is optional (we fall back to country outlines).
+- Both counts come in **one response**, so the Legacy/Harmonized switch animates without a refetch.
+- `human` drives the globe colors (ice = natural → magenta = human) and the spectrum filter.
+- Budget: ≤ 3,000 rows per year, globally.
 
-### `GET /cells?year=2019` and `GET /cells?year=2019&region=amazon`
-One row per grid cell that had **vegetation fires** that year (STA-filtered, VIIRS Type 0 / MODIS via STA mask).
-```json
-[
-  { "lat": -4.5, "lng": -61.2, "regionId": "amazon", "legacy": 812, "harmonized": 968 }
-]
+### 3.2 `GET /regions/{id}/summary?year=2019`
+```ts
+interface RegionSummary {
+  regionId: string
+  year: number
+  undercountPct: number               // e.g. 18.3
+  undercountCi: [number, number]      // e.g. [15.0, 21.6]
+  firesLegacy: number
+  firesHarmonized: number
+  humanScore: { legacy: number; harmonized: number }  // 0–1, before vs after correction
+  weekdayCounts: number[]             // 7 values, MONDAY FIRST, mean detections per weekday
+  trend: { year: number; raw: number; corrected: number; lo: number; hi: number }[]  // every year
+  trendSurvives: boolean              // does the raw trend's direction survive correction?
+  verdict: string                     // one plain sentence; may be "" and we'll write it
+}
 ```
-- `legacy` = detections in the original MODIS record.
-- `harmonized` = the corrected count (MODIS × your correction, or the VIIRS-calibrated equivalent).
-- **Both in the same response**, so the Legacy/Harmonized toggle animates without refetching.
-- Without `region`, return all regions (the global view). Cells outside the study regions can be omitted.
-
-### `GET /regions/{id}/summary?year=2019`
 ```json
 {
-  "regionId": "amazon",
-  "year": 2019,
-  "undercountPct": 18.3,
-  "undercountCi": [15.0, 21.6],
-  "firesLegacy": 9711,
-  "firesHarmonized": 11486,
+  "regionId": "amazon", "year": 2019,
+  "undercountPct": 18.3, "undercountCi": [15.0, 21.6],
+  "firesLegacy": 9711, "firesHarmonized": 11486,
   "humanScore": { "legacy": 0.77, "harmonized": 0.83 },
   "weekdayCounts": [1052, 1083, 1094, 1072, 1031, 886, 842],
-  "trend": [
-    { "year": 2001, "raw": 100.0, "corrected": 119.4, "lo": 108.7, "hi": 130.1 }
-  ],
+  "trend": [ { "year": 2001, "raw": 100.0, "corrected": 119.4, "lo": 108.7, "hi": 130.1 } ],
   "trendSurvives": true,
   "verdict": "Trend survives correction; human signal strengthens."
 }
 ```
-- `weekdayCounts` is **Monday first**, 7 values.
-- `trend` covers every year in the range, the same for any `year` parameter.
-- `verdict` is one plain sentence. If you'd rather not write copy, omit it and we'll generate it from `trendSurvives` and `humanScore`.
 
-### `GET /summary?year=2019` (global; requested by the UI side)
-```json
-{
-  "year": 2019,
-  "undercountPct": 20.5,
-  "undercountCi": [17.1, 23.8],
-  "firesLegacy": 87545,
-  "firesHarmonized": 105455,
-  "regions": [ { "regionId": "india_china", "undercountPct": 41.2 } ]
+### 3.3 `GET /progress?region=amazon` · `GET /progress?lat=31.1&lng=30.9&radiusKm=150`
+"How much worse since the start of the record".
+```ts
+interface ProgressSummary {
+  name: string                          // region name; for places, echo anything (we show our own name)
+  years: { first: number; last: number }
+  series: { year: number; legacy: number; harmonized: number }[]   // yearly totals, every year
+  baseline: number                      // mean harmonized fires/yr, first 3 years
+  recent: number                        // mean harmonized fires/yr, last 3 years
+  changePct: number                     // (recent - baseline) / baseline * 100
+  direction: 'worse' | 'better' | 'stable'   // worse > +10%, better < -10%
+  humanLikelihood: { legacy: number; harmonized: number }          // area value, 0–1
+  covered: boolean                      // false if the place is outside all study regions
 }
 ```
-Keeps the global numbers consistent with the per-region ones (today the UI sums cells itself).
 
-### `GET /meta` (nice to have)
-```json
-{ "years": { "min": 2001, "max": 2025 }, "dataVersion": "2026-11-13T20:00Z", "sources": ["NASA FIRMS MODIS C6.1", "NASA FIRMS VIIRS S-NPP/NOAA-20 375m"] }
+### 3.4 `GET /daily?year=2019&region=india_china` (or a place target)
+Every day of the year, for the calendar heatmap.
+```ts
+interface DailyPoint { date: string; legacy: number; harmonized: number }   // date = YYYY-MM-DD (local solar)
 ```
-Shown in the Methods panel.
-
-### Added 14:45: human vs natural, places, calendar
-
-**`/cells` rows gain `human`** (0–1): likelihood that fire activity in that cell is human-driven (weekly-cycle test per cell, or the region's score if a cell has too few detections). This drives the globe's "Human vs natural" mode.
 ```json
-{ "lat": -4.5, "lng": -61.2, "regionId": "amazon", "legacy": 812, "harmonized": 968, "human": 0.81 }
+[ { "date": "2019-01-01", "legacy": 12, "harmonized": 15 }, { "date": "2019-01-02", "legacy": 9, "harmonized": 13 } ]
 ```
-
-A **target** is either `region=<id>` **or** `lat=&lng=&radiusKm=` (a place the user searched for or clicked; aggregate the fires within that radius).
-
-`GET /progress?region=amazon` | `?lat=31.1&lng=30.9&radiusKm=150`: "how much worse since 2001"
-```json
-{
-  "name": "Amazon Basin",
-  "years": { "first": 2001, "last": 2025 },
-  "series": [ { "year": 2001, "legacy": 9100, "harmonized": 10850 } ],
-  "baseline": 10980, "recent": 12410, "changePct": 13.0, "direction": "worse",
-  "humanLikelihood": { "legacy": 0.77, "harmonized": 0.83 },
-  "covered": true
-}
-```
-`baseline` / `recent` = mean harmonized fires per year over the first / last 3 years. `direction`: worse if > +10%, better if < −10%, else stable. `covered: false` if the place is outside all study regions.
-
-`GET /daily?year=2019&region=amazon` (or a place): every day of the year, for the calendar
-```json
-[ { "date": "2019-01-01", "legacy": 12, "harmonized": 15 } ]
-```
-**Needs daily aggregation** of the FIRMS detections. Please use **local solar date** (acquisition time + longitude/15 h), so the days and weekends line up with the weekly-cycle test.
-
-`GET /day?date=2019-11-03&region=india_china` (or a place): the day card
-```json
-{
-  "date": "2019-11-03", "weekday": 6, "isWeekend": true,
-  "firesLegacy": 288, "firesHarmonized": 407,
-  "humanLikelihood": 0.90,
-  "vsYearAvgPct": 415.4, "vsWeekdayAvgPct": 507.1, "rankInYear": 8
-}
-```
-`weekday`: 0 = Monday. The frontend can derive this card from `/daily` if you'd rather not build it.
-
-**Place search** is done in the frontend (offline gazetteer + OpenStreetMap). The backend only needs to accept `lat/lng/radiusKm` targets.
-
-**Wording rule (science honesty):** the human/natural signal is a **likelihood for an area**, not a classification of individual fires. Please keep the same wording in slides.
-
-### Errors
-`400` for a bad `year`, `404` for an unknown region, with `{ "error": "message" }`.
+365 or 366 rows, days with zero fires included.
 
 ---
 
-## 3. Plan B: static JSON files (strongly recommended for the demo)
+## 4. Optional endpoints
 
-All of this is **precomputed**; nothing depends on user input. If hosting the .NET API is risky on venue Wi-Fi, the data scientist can export the same responses as files and we bundle them into the frontend:
+### 4.1 `GET /day?date=2019-11-03&region=india_china` (or a place). We derive this from `/daily` if missing.
+```ts
+interface DayDetail {
+  date: string; weekday: number /* 0 = Monday */; isWeekend: boolean
+  firesLegacy: number; firesHarmonized: number
+  humanLikelihood: number      // the area's value (same for every day)
+  vsYearAvgPct: number         // this day vs the year's daily mean, %
+  vsWeekdayAvgPct: number      // this day vs the mean of the same weekday that year, %
+  rankInYear: number           // 1 = most fires that year
+}
+```
 
+### 4.2 `GET /regions`
+```ts
+interface Region {
+  id: string; name: string; blurb: string
+  center?: { lat: number; lng: number; altitude: number }   // camera view; omit and we use ours
+  geometry?: GeoJSON.MultiPolygon                           // the analysis boundary
+}
 ```
-data/regions.json
-data/cells/2001.json … data/cells/2025.json
-data/summary/2019.json                 (global)
-data/regions/amazon/summary/2019.json  (per region per year)
+
+### 4.3 `GET /summary?year=2019`
+```ts
+interface GlobalSummary {
+  year: number; undercountPct: number; undercountCi: [number, number]
+  firesLegacy: number; firesHarmonized: number; humanLikelihood: number
+  regions: { regionId: string; undercountPct: number; humanLikelihood: number }[]
+}
 ```
-Same JSON shapes as above. Then the demo works with **zero servers**, and the API can still exist for the "real" product. Switching between the two is a one-line change in `src/shared/api.ts`.
+
+### 4.4 `GET /meta`
+```json
+{ "years": { "min": 2001, "max": 2025 }, "dataVersion": "2026-11-13T20:00Z",
+  "sources": ["NASA FIRMS MODIS C6.1 (MCD14ML)", "NASA FIRMS VIIRS 375 m (S-NPP, NOAA-20)"] }
+```
 
 ---
 
-## 4. .NET notes (minimal API)
+## 5. Ready-to-paste C# DTOs (ASP.NET minimal API)
 
 ```csharp
+namespace Backend.DTOs;
+
+public record FireCellDto(double Lat, double Lng, string RegionId, int Legacy, int Harmonized, double Human);
+
+public record HumanPairDto(double Legacy, double Harmonized);
+public record TrendPointDto(int Year, double Raw, double Corrected, double Lo, double Hi);
+public record RegionSummaryDto(
+    string RegionId, int Year, double UndercountPct, double[] UndercountCi,
+    int FiresLegacy, int FiresHarmonized, HumanPairDto HumanScore,
+    int[] WeekdayCounts, TrendPointDto[] Trend, bool TrendSurvives, string Verdict);
+
+public record YearPairDto(int Year, int Legacy, int Harmonized);
+public record YearsDto(int First, int Last);
+public record ProgressDto(
+    string Name, YearsDto Years, YearPairDto[] Series, int Baseline, int Recent,
+    double ChangePct, string Direction, HumanPairDto HumanLikelihood, bool Covered);
+
+public record DailyPointDto(string Date, int Legacy, int Harmonized);
+
+public record DayDetailDto(
+    string Date, int Weekday, bool IsWeekend, int FiresLegacy, int FiresHarmonized,
+    double HumanLikelihood, double VsYearAvgPct, double VsWeekdayAvgPct, int RankInYear);
+```
+```csharp
+// Program.cs
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
-    .WithOrigins("http://localhost:5173", "http://localhost:8080", "https://<our-vercel-url>")
+    .WithOrigins("http://localhost:5173", "http://localhost:8080", "https://<our-deploy-url>")
     .AllowAnyHeader().WithMethods("GET")));
 builder.Services.AddResponseCompression();
-// ...
+var app = builder.Build();
 app.UseCors();
 app.UseResponseCompression();
-app.MapGet("/regions", ...);
-app.MapGet("/cells", (int year, string? region) => ...);
-app.MapGet("/regions/{id}/summary", (string id, int year) => ...);
-app.MapGet("/summary", (int year) => ...);
+
+app.MapGet("/cells", (int year, string? region) => /* FireCellDto[] */);
+app.MapGet("/regions/{id}/summary", (string id, int year) => /* RegionSummaryDto */);
+app.MapGet("/progress", (string? region, double? lat, double? lng, double? radiusKm) => /* ProgressDto */);
+app.MapGet("/daily", (int year, string? region, double? lat, double? lng, double? radiusKm) => /* DailyPointDto[] */);
+app.MapGet("/day", (string date, string? region, double? lat, double? lng, double? radiusKm) => /* DayDetailDto */);
 ```
-Use camelCase JSON (the ASP.NET default), so the property names above match exactly.
+`UndercountCi` is serialized as a 2-element array, exactly what we expect.
+
+---
+
+## 6. Plan B (recommended for the demo): static JSON files, no server
+
+Everything is precomputed, so the data scientist can write the same responses to files. We bundle them and the demo works offline.
+
+```
+data/cells/2001.json … 2025.json               ← /cells?year=Y           (all regions)
+data/regions/{id}/summary/2001.json … 2025.json ← /regions/{id}/summary?year=Y
+data/regions/{id}/progress.json                 ← /progress?region=id
+data/regions/{id}/daily/2001.json … 2025.json   ← /daily?year=Y&region=id
+```
+Places (arbitrary lat/lng) can't be precomputed. In Plan B we compute place progress and daily data **in the browser from the cells** (we already do this for the mock). We'd only need **daily data per cell**, or we fall back to the region's daily curve, scaled.
+
+---
+
+## 7. How to check you match
+
+1. Open the app, open the browser console, run `await window.__thermoraApi.getSummary('amazon', 2019)`. That's the exact shape our mock returns. Compare it with your response.
+2. Run the frontend against your API: `cd frontend && VITE_API_URL=http://localhost:5042 npm run dev`
+3. While mock data is active, the UI shows "Sample data, not results". It disappears with a real API.
 
 ---
 
@@ -178,8 +243,8 @@ Use camelCase JSON (the ASP.NET default), so the property names above match exac
 - Regions + boundaries:
 - Years:
 - Grid:
-- Definitions (undercount period, CI level, weekday basis, trend units):
-- Demo URL / CORS:
-- API or static files for the demo:
-- Per-cell human likelihood available? (else we use the region score for every cell):
-- Daily aggregation available? Local solar date?:
+- Undercount period / CI level:
+- Human likelihood: per cell or per region?
+- Weekday basis (local solar?):
+- Trend units:
+- Hosting (URL + CORS) or Plan B static files:
