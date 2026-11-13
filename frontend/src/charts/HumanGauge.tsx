@@ -23,7 +23,7 @@ function Tick({ v, color, label }: { v: number; color: string; label: string }) 
   return (
     <g>
       <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={color} strokeWidth={2.5} strokeLinecap="round" />
-      <text x={t.x} y={t.y} fill={color} fontSize={8} textAnchor="middle" dominantBaseline="middle" fontFamily="var(--font-mono)">
+      <text x={t.x} y={t.y} fill={color} fontSize={9} textAnchor="middle" dominantBaseline="middle">
         {label}
       </text>
     </g>
@@ -32,12 +32,12 @@ function Tick({ v, color, label }: { v: number; color: string; label: string }) 
 
 export default function HumanGauge({ legacy, harmonized, mode }: { legacy: number; harmonized: number; mode: Mode }) {
   const active = mode === 'legacy' ? legacy : harmonized
-  const color = mode === 'legacy' ? 'var(--color-fire)' : mode === 'harmonized' ? 'var(--color-cyan)' : 'var(--color-missed)'
+  const color = mode === 'legacy' ? 'var(--color-fire)' : mode === 'human' ? 'var(--color-missed)' : 'var(--color-cyan)'
   const shift = harmonized - legacy
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} 124`} className="mx-auto block w-full max-w-[240px]" role="img" aria-label={`Human-influence probability ${active.toFixed(2)}`}>
+      <svg viewBox={`0 0 ${W} 124`} className="mx-auto block w-full max-w-[240px]" role="img" aria-label={`Human likelihood ${active.toFixed(2)}`}>
         <path d={ARC} fill="none" stroke="var(--color-line)" strokeWidth={10} strokeLinecap="round" />
         <motion.path
           d={ARC}
@@ -69,24 +69,29 @@ export default function HumanGauge({ legacy, harmonized, mode }: { legacy: numbe
           <line x1={CX} y1={CY} x2={CX - R + 22} y2={CY} stroke="var(--color-text)" strokeWidth={2} strokeLinecap="round" />
         </g>
         <circle cx={CX} cy={CY} r={4} fill="var(--color-text)" />
-        <text x={CX - R} y={CY + 14} fill="var(--color-dim)" fontSize={8} textAnchor="middle" fontFamily="var(--font-mono)">
-          NATURAL
+        <text x={CX - R} y={CY + 15} fill="var(--color-cyan)" fontSize={10} textAnchor="middle" style={{ fontStretch: '72%' }}>
+          Natural
         </text>
-        <text x={CX + R} y={CY + 14} fill="var(--color-dim)" fontSize={8} textAnchor="middle" fontFamily="var(--font-mono)">
-          HUMAN
+        <text x={CX + R} y={CY + 15} fill="var(--color-missed)" fontSize={10} textAnchor="middle" style={{ fontStretch: '72%' }}>
+          Human
         </text>
       </svg>
       <div className="-mt-1 flex items-end justify-between">
         <div>
-          <CountUp value={active} format={(v) => v.toFixed(2)} className="font-mono text-2xl tabular-nums" />
-          <span className="ml-1 font-mono text-xs text-dim">P(human)</span>
-          <div className="text-xs text-dim">{humanLabel(active)}</div>
+          <CountUp value={active} format={(v) => v.toFixed(2)} className="readout text-[28px]" />
+          <span className="ml-1.5 text-[12.5px] text-dim">human likelihood</span>
+          <div className="text-[12.5px] text-dim">{humanLabel(active)}</div>
         </div>
         <div className="text-right">
-          <div className="label">correction shifts it</div>
-          <div className={`font-mono text-sm ${mode === 'difference' ? 'text-missed' : 'text-text'}`}>
-            {legacy.toFixed(2)} → {harmonized.toFixed(2)} ({shift >= 0 ? '+' : ''}
-            {shift.toFixed(2)})
+          <div className="label">Legacy, then corrected</div>
+          <div className="font-mono text-sm">
+            <span className="text-fire">{legacy.toFixed(2)}</span>
+            <span className="text-dim">, </span>
+            <span className={mode === 'human' ? 'text-missed' : 'text-cyan'}>{harmonized.toFixed(2)}</span>
+            <span className="ml-1.5 text-dim">
+              ({shift >= 0 ? '+' : ''}
+              {shift.toFixed(2)})
+            </span>
           </div>
         </div>
       </div>

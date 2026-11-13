@@ -20,11 +20,11 @@ export default function WeeklyChart({ counts }: { counts: number[] }) {
       <div className="h-28">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-            <XAxis dataKey="day" tick={{ fill: 'var(--color-dim)', fontSize: 10, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="day" tick={{ fill: 'var(--color-dim)', fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis
               domain={[-ext, ext]}
               tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${Math.round(v)}%`}
-              tick={{ fill: 'var(--color-dim)', fontSize: 9, fontFamily: 'var(--font-mono)' }}
+              tick={{ fill: 'var(--color-dim)', fontSize: 10 }}
               axisLine={false}
               tickLine={false}
               ticks={[-tickV, 0, tickV]}
@@ -34,7 +34,7 @@ export default function WeeklyChart({ counts }: { counts: number[] }) {
               cursor={{ fill: 'rgb(255 255 255 / 0.04)' }}
               content={({ active, payload }) =>
                 active && payload?.[0] ? (
-                  <div className="panel px-2 py-1 font-mono text-[11px]">
+                  <div className="panel px-2 py-1 text-[12px]">
                     {payload[0].payload.day}: {fmtInt(payload[0].payload.count)} / day
                     <div className="text-dim">
                       {payload[0].payload.dev >= 0 ? '+' : ''}

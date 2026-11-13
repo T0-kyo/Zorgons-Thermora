@@ -1,67 +1,64 @@
-/** OWNER: Agent B. B3 — region spotlight: undercount, counts, and the three answers (B4–B6). */
-import { AnimatePresence, motion } from 'framer-motion'
+/**
+ * OWNER: Agent B. Desktop right-hand panel (B3/B15): place search on top, then the global
+ * overview, or the region/place panel with its Progress and Calendar views.
+ * RegionFindings keeps the original three answers (undercount, weekly rhythm, trend) for the
+ * region, as a collapsible section inside the Progress view.
+ */
+import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
 import HumanGauge from '../charts/HumanGauge'
 import WeeklyChart from '../charts/WeeklyChart'
 import TrendChart from '../charts/TrendChart'
 import CountUp from './CountUp'
-import { useSummary } from './data'
+import { fmtPct, useSummary } from './data'
 import { HeroCount, RecordBar, Section } from './RecordBar'
 import GlobalOverview from './GlobalOverview'
+import PlaceSearch from './PlaceSearch'
+import TargetPanel from './TargetPanel'
+import { useTarget } from './useTarget'
+import { targetKey } from './data'
 
-function Skeleton() {
-  return (
-    <div className="mt-4 animate-pulse space-y-3">
-      <div className="h-8 w-2/3 rounded bg-line" />
-      <div className="h-2.5 rounded bg-line" />
-      <div className="h-28 rounded bg-line" />
-      <div className="h-28 rounded bg-line" />
-    </div>
-  )
-}
-
-export function SpotlightContent({ regionId }: { regionId: string }) {
+export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlace: boolean }) {
   const year = useApp((s) => s.year)
   const mode = useApp((s) => s.mode)
-  const selectRegion = useApp((s) => s.selectRegion)
-  const stopTour = useApp((s) => s.stopTour)
-  const region = regionById(regionId)
   const { data: s, error } = useSummary(regionId, year)
+  const [open, setOpen] = useState(!isPlace)
+  const region = regionById(regionId)
   if (!region) return null
 
   return (
-    <div>
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="label">Region spotlight · {year}</div>
-          <h2 className="mt-0.5 text-lg leading-tight font-semibold">{region.name}</h2>
-          <p className="text-xs text-dim">{region.blurb}</p>
-        </div>
-        <button
-          onClick={() => {
-            stopTour()
-            selectRegion(null)
-          }}
-          aria-label="Back to global view"
-          className="rounded px-1.5 text-dim hover:bg-white/5 hover:text-text"
-        >
-          ✕
-        </button>
-      </div>
-
-      {error && <p className="mt-4 text-sm text-warn">Data for this region is unavailable right now.</p>}
-      {!s && !error && <Skeleton />}
-      {s && (
+    <section className="border-t border-line pt-3">
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-baseline justify-between gap-3 text-left">
+        <span>
+          <span className="block text-[15px]">{isPlace ? `About the wider region` : 'Region findings'}</span>
+          <span className="label">
+            {region.name}, {year}
+          </span>
+        </span>
+        <span className="flex items-baseline gap-2">
+          {s && (
+            <span className="text-[12.5px] text-dim">
+              Undercount <span className="font-mono text-missed">+{fmtPct(s.undercountPct, 0)}</span>
+            </span>
+          )}
+          <span className={`text-dim transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
+            ▾
+          </span>
+        </span>
+      </button>
+      {error && <p className="mt-2 text-sm text-warn">Region data is unavailable right now.</p>}
+      {open && s && (
         <div className="mt-3 space-y-3">
           <Section q="Q1" title="How much did the legacy record miss?">
             <div className="flex items-end justify-between gap-3">
               <HeroCount legacy={s.firesLegacy} harmonized={s.firesHarmonized} mode={mode} />
               <div className="text-right">
-                <div className="label">undercount</div>
-                <CountUp value={s.undercountPct} format={(v) => `+${v.toFixed(1)}%`} className="block font-mono text-3xl text-missed tabular-nums" />
-                <div className="font-mono text-[10px] text-dim">
-                  CI {s.undercountCi[0]}–{s.undercountCi[1]}%
+                <div className="label">Undercount</div>
+                <CountUp value={s.undercountPct} format={(v) => `+${v.toFixed(1)}%`} className="readout block text-[30px] text-missed" />
+                <div className="text-[12px] text-dim">
+                  range <span className="font-mono">{s.undercountCi[0]}</span> to <span className="font-mono">{s.undercountCi[1]}%</span>
                 </div>
               </div>
             </div>
@@ -69,39 +66,53 @@ export function SpotlightContent({ regionId }: { regionId: string }) {
               <RecordBar legacy={s.firesLegacy} harmonized={s.firesHarmonized} mode={mode} />
             </div>
           </Section>
-
-          <Section q="Q2" title="Is the fire human-driven?">
+          <Section q="Q2" title="Human or natural?">
             <HumanGauge legacy={s.humanScore.legacy} harmonized={s.humanScore.harmonized} mode={mode} />
             <div className="mt-3">
-              <div className="label mb-1">Weekly cycle · detections vs weekly mean</div>
+              <div className="mb-1 flex items-baseline justify-between">
+                <span className="label">Weekly rhythm</span>
+                <span className="label">detections vs the weekly mean</span>
+              </div>
               <WeeklyChart counts={s.weekdayCounts} />
             </div>
           </Section>
-
           <Section q="Q3" title="Does the trend hold after correction?">
             <TrendChart trend={s.trend} year={year} mode={mode} survives={s.trendSurvives} verdict={s.verdict} />
           </Section>
         </div>
       )}
+    </section>
+  )
+}
+
+/** Panel body shared by desktop and the phone sheet. */
+export function PanelBody({ compact = false }: { compact?: boolean }) {
+  const target = useTarget()
+  return (
+    <div className="space-y-3">
+      <PlaceSearch />
+      {target ? <TargetPanel target={target} /> : <GlobalOverview compact={compact} />}
     </div>
   )
 }
 
-/** Desktop right-hand panel: global overview, or the spotlight for the selected region. */
+/**
+ * Desktop right-hand panel. The new content slides in at once (no waiting for an exit
+ * animation): during a camera fly-to a weak GPU can stall animations, and the panel must
+ * never disappear for the length of the flight.
+ */
 export default function SpotlightPanel() {
-  const regionId = useApp((s) => s.regionId)
+  const target = useTarget()
+  const key = target ? targetKey(target) : 'global'
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.aside
-        key={regionId ?? 'global'}
-        initial={{ opacity: 0, x: 32 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 32 }}
-        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="panel pointer-events-auto max-h-full w-[360px] shrink-0 overflow-y-auto p-4 [scrollbar-width:thin]"
-      >
-        {regionId ? <SpotlightContent regionId={regionId} /> : <GlobalOverview />}
-      </motion.aside>
-    </AnimatePresence>
+    <motion.aside
+      key={key}
+      initial={{ opacity: 0.4, x: 18 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      className="panel pointer-events-auto max-h-full w-[380px] shrink-0 overflow-y-auto p-4 [scrollbar-width:thin]"
+    >
+      <PanelBody />
+    </motion.aside>
   )
 }

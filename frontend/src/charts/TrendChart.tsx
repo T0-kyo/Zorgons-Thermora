@@ -19,17 +19,17 @@ export default function TrendChart({ trend, year, mode, survives, verdict }: Pro
   const corSlope = pctPerDecade(trend.map((t) => ({ x: t.year, y: t.corrected })))
   const rawOn = mode !== 'harmonized'
   const corOn = mode !== 'legacy'
-  const tick = { fill: 'var(--color-dim)', fontSize: 9, fontFamily: 'var(--font-mono)' }
+  const tick = { fill: 'var(--color-dim)', fontSize: 11 }
 
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
         <span
-          className={`rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase ${
+          className={`rounded border px-2 py-0.5 text-[12px] ${
             survives ? 'border-ok/50 bg-ok/10 text-ok' : 'border-warn/50 bg-warn/10 text-warn'
           }`}
         >
-          {survives ? '✓ Trend survives correction' : '⚠ Trend changes after correction'}
+          {survives ? 'Trend holds after correction' : 'Trend changes after correction'}
         </span>
       </div>
       <div className="h-36">
@@ -37,7 +37,7 @@ export default function TrendChart({ trend, year, mode, survives, verdict }: Pro
           <ComposedChart data={data} margin={{ top: 6, right: 6, bottom: 0, left: -18 }}>
             <XAxis dataKey="year" type="number" domain={['dataMin', 'dataMax']} ticks={[2001, 2006, 2012, 2018, 2025]} tick={tick} axisLine={false} tickLine={false} />
             <YAxis tick={tick} axisLine={false} tickLine={false} tickCount={4} domain={['auto', 'auto']} />
-            <ReferenceLine x={2012} stroke="var(--color-line)" strokeDasharray="2 3" label={{ value: 'VIIRS →', position: 'insideTopLeft', fill: 'var(--color-dim)', fontSize: 8 }} />
+            <ReferenceLine x={2012} stroke="var(--color-line)" strokeDasharray="2 3" label={{ value: 'VIIRS era', position: 'insideTopLeft', fill: 'var(--color-dim)', fontSize: 10 }} />
             <ReferenceLine x={year} stroke="var(--color-text)" strokeOpacity={0.35} />
             <Area dataKey="band" stroke="none" fill="var(--color-cyan)" fillOpacity={corOn ? 0.16 : 0.06} isAnimationActive={false} />
             <Line dataKey="raw" stroke="var(--color-fire)" strokeWidth={rawOn ? 2 : 1} strokeOpacity={rawOn ? 1 : 0.35} dot={false} animationDuration={500} />
@@ -47,7 +47,7 @@ export default function TrendChart({ trend, year, mode, survives, verdict }: Pro
               content={({ active, payload }) => {
                 const p = payload?.[0]?.payload as (TrendPoint & { band: number[] }) | undefined
                 return active && p ? (
-                  <div className="panel px-2 py-1 font-mono text-[11px]">
+                  <div className="panel px-2 py-1 text-[12px]">
                     <div className="text-dim">{p.year}</div>
                     <div className="text-fire">raw {p.raw}</div>
                     <div className="text-cyan">
@@ -60,19 +60,17 @@ export default function TrendChart({ trend, year, mode, survives, verdict }: Pro
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-1 grid grid-cols-2 gap-2 font-mono text-[11px]">
+      <div className="mt-1 grid grid-cols-2 gap-2 text-[12px]">
         <div>
-          <span className="inline-block h-0.5 w-3 bg-fire align-middle" /> <span className="text-dim">raw</span>{' '}
-          <span className="text-fire">{sign(rawSlope)}</span>
-          <span className="text-dim">/dec</span>
+          <span className="inline-block h-0.5 w-3 bg-fire align-middle" /> <span className="text-dim">Raw</span>{' '}
+          <span className="font-mono text-fire">{sign(rawSlope)}</span> <span className="text-dim">per decade</span>
         </div>
         <div className="text-right">
-          <span className="inline-block h-0.5 w-3 bg-cyan align-middle" /> <span className="text-dim">corrected</span>{' '}
-          <span className="text-cyan">{sign(corSlope)}</span>
-          <span className="text-dim">/dec</span>
+          <span className="inline-block h-0.5 w-3 bg-cyan align-middle" /> <span className="text-dim">Corrected</span>{' '}
+          <span className="font-mono text-cyan">{sign(corSlope)}</span> <span className="text-dim">per decade</span>
         </div>
       </div>
-      <p className="mt-1.5 text-xs text-text/85">{verdict}</p>
+      <p className="mt-1.5 text-[13px] text-text/85">{verdict}</p>
     </div>
   )
 }

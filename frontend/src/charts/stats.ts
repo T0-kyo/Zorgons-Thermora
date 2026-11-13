@@ -22,8 +22,9 @@ export function weekendDip(counts: number[]) {
   return wk > 0 ? ((we - wk) / wk) * 100 : 0
 }
 
+/** Area-level wording (team rule): a likelihood for an area, never a label on a single fire. */
 export function humanLabel(v: number) {
-  if (v >= 0.66) return 'Strong human fingerprint'
-  if (v >= 0.4) return 'Mixed human / natural'
-  return 'Mostly natural fire regime'
+  if (v >= 0.66) return 'Likely human-driven'
+  if (v >= 0.4) return 'Mixed human and natural'
+  return 'Likely natural'
 }

@@ -3,42 +3,65 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { regionById } from '../shared/regions'
-import { SpotlightContent } from './SpotlightPanel'
-import GlobalOverview from './GlobalOverview'
-import { fmtPct, useSummary, useYearTotals } from './data'
+import { PanelBody } from './SpotlightPanel'
+import { fmtPct, useProgress, useYearTotals, targetKey } from './data'
+import { useTarget } from './useTarget'
+import MapLegend from './HumanLegend'
 import Timeline from './Timeline'
 
 function Peek() {
-  const regionId = useApp((s) => s.regionId)
+  const target = useTarget()
   const year = useApp((s) => s.year)
-  const { data } = useSummary(regionId, year)
+  const mode = useApp((s) => s.mode)
   const totals = useYearTotals(year)
-  const region = regionById(regionId)
-  const pct = region ? data?.undercountPct : totals?.global.pct
+  const { data: p } = useProgress(target)
+  const human = mode === 'human'
+  const title = target ? (target.kind === 'place' ? target.place.name : (regionById(target.regionId)?.name ?? '')) : human ? 'Human or natural?' : 'How much fire did the record miss?'
+  const value = target
+    ? p && p.covered
+      ? human
+        ? p.humanLikelihood.harmonized.toFixed(2)
+        : `${p.changePct >= 0 ? '+' : '−'}${Math.abs(p.changePct).toFixed(0)}%`
+      : null
+    : totals
+      ? human
+        ? totals.global.human.toFixed(2)
+        : `+${fmtPct(totals.global.pct)}`
+      : null
+  const caption = target ? (human ? 'Human likelihood' : 'Since 2001') : human ? 'Human likelihood' : 'Undercount'
   return (
-    <div className="flex items-baseline justify-between gap-2 px-1">
+    <div className="flex items-end justify-between gap-2 px-1">
       <div className="min-w-0">
-        <div className="label">{region ? 'Region spotlight' : 'Global view'} · {year}</div>
-        <div className="truncate text-sm font-semibold">{region ? region.name : 'How much fire did the record miss?'}</div>
+        <div className="label">{target ? (target.kind === 'place' ? 'Place' : 'Region') : 'Global view'}</div>
+        <div className="truncate text-[15px]">{title}</div>
       </div>
-      {pct != null && <div className="shrink-0 font-mono text-xl text-missed">+{fmtPct(pct)}</div>}
+      {value && (
+        <div className="shrink-0 text-right">
+          <div className="readout text-[24px] text-missed">{value}</div>
+          <div className="label">
+            {caption}, {year}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default function MobileSheet() {
-  const regionId = useApp((s) => s.regionId)
-  const [open, setOpen] = useState(regionId !== null)
-  const [prevRegion, setPrevRegion] = useState(regionId)
+  const target = useTarget()
+  const key = target ? targetKey(target) : null
+  const [open, setOpen] = useState(key !== null)
+  const [prevKey, setPrevKey] = useState(key)
 
-  // picking a region opens the sheet; going global collapses it so the globe is visible
-  if (prevRegion !== regionId) {
-    setPrevRegion(regionId)
-    setOpen(regionId !== null)
+  // picking a region or place opens the sheet; going global collapses it so the globe is visible
+  if (prevKey !== key) {
+    setPrevKey(key)
+    setOpen(key !== null)
   }
 
   return (
     <div className="pointer-events-auto space-y-2 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      {!open && <MapLegend className="w-auto" />}
       <Timeline compact />
       <motion.div
         className="panel overflow-hidden rounded-b-none"
@@ -61,7 +84,7 @@ export default function MobileSheet() {
         </motion.button>
         {open && (
           <div className="h-[calc(62vh-2.5rem)] overflow-y-auto px-4 pb-6">
-            {regionId ? <SpotlightContent regionId={regionId} /> : <GlobalOverview compact />}
+            <PanelBody compact />
           </div>
         )}
       </motion.div>

@@ -47,7 +47,7 @@ export default function AboutModal() {
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="label">About · methods</div>
+                <div className="label">About and methods</div>
                 <h2 id="about-title" className="mt-1 text-xl font-semibold">
                   Thermora: the corrected fire record
                 </h2>
@@ -87,31 +87,39 @@ export default function AboutModal() {
 
             <Block title="Method">
               <p>
-                <b>1 · Vegetation fires only.</b> Static and non-vegetation sources (gas flares, industrial sites, power plants, volcanoes) are
+                <b>1. Vegetation fires only.</b> Static and non-vegetation sources (gas flares, industrial sites, power plants, volcanoes) are
                 removed before any comparison.
               </p>
               <p>
-                <b>2 · Measure the gap.</b> Where both sensors overlap (2012 onward), we fit a region-aware MODIS→VIIRS correction and apply it
+                <b>2. Measure the gap.</b> Where both sensors overlap (2012 onward), we fit a region-aware MODIS to VIIRS correction and apply it
                 back to the MODIS-only years. The undercount is the % more fires in the harmonized record, with an uncertainty range.
               </p>
               <p>
-                <b>3 · Human fingerprint.</b> Nature has no 7-day rhythm. A weekday/weekend pattern in fire detections signals human activity;
-                we turn it into a 0–1 probability per region, before and after correction.
+                <b>3. Human or natural.</b> Nature has no 7-day rhythm. A weekday/weekend pattern in fire detections signals human activity;
+                we turn it into a 0–1 likelihood for each area, before and after correction. It describes an area, never a single fire.
               </p>
               <p>
-                <b>4 · Trends.</b> Fire-regime trends are compared raw vs corrected, with uncertainty, to test whether the raw trend survives.
+                <b>4. Trends.</b> Fire-regime trends are compared raw vs corrected, with uncertainty, to test whether the raw trend survives.
               </p>
             </Block>
 
             <Block title="Reading the map">
-              <p>
-                <span className="text-fire">Orange</span> = legacy MODIS record · <span className="text-cyan">cyan</span> = harmonized /
-                corrected · <span className="text-missed">magenta</span> = fires the legacy record missed.
-              </p>
+              <ul className="space-y-1">
+                <li>
+                  <span className="text-fire">Legacy (MODIS)</span>: the original record, in orange.
+                </li>
+                <li>
+                  <span className="text-cyan">Harmonized</span>: the corrected record, MODIS plus VIIRS.
+                </li>
+                <li>
+                  <span className="text-missed">Human vs natural</span>: each area coloured from ice blue (likely natural) to magenta (likely
+                  human-driven).
+                </li>
+              </ul>
             </Block>
 
             <Block title="Team & credits">
-              <p>Team Zorgons · NASA Space Apps Challenge, Cairo 2026.</p>
+              <p>Team Zorgons, NASA Space Apps Challenge, Cairo 2026.</p>
               <p className="text-xs text-dim">
                 Earth imagery: NASA Blue Marble &amp; Black Marble. Country outlines: Natural Earth. Built with React, three.js and
                 react-globe.gl.

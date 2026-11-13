@@ -1,33 +1,37 @@
-/** OWNER: Agent B. B1 — brand, Legacy / Harmonized / Missed toggle, live UTC clock, tour + about. */
+/** OWNER: Agent B. B1/B12 — wordmark, Legacy / Harmonized / Human vs natural toggle, UTC clock + sun, tour, methods. */
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { USING_MOCK } from '../shared/api'
+import { sunPosition } from '../shared/sun'
 import type { Mode } from '../shared/types'
 import { useUi } from './uiStore'
 
+/** 'difference' stays supported by the globe but is no longer offered in the UI (team decision, B12). */
 const MODES: { id: Mode; label: string; short: string; on: string; pill: string }[] = [
-  { id: 'legacy', label: 'Legacy · MODIS', short: 'Legacy', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
+  { id: 'legacy', label: 'Legacy (MODIS)', short: 'Legacy', on: 'text-fire', pill: 'bg-fire/15 border-fire/50' },
   { id: 'harmonized', label: 'Harmonized', short: 'Harmonized', on: 'text-cyan', pill: 'bg-cyan/15 border-cyan/50' },
-  { id: 'difference', label: 'Missed fires', short: 'Missed', on: 'text-missed', pill: 'bg-missed/15 border-missed/50' },
+  { id: 'human', label: 'Human vs natural', short: 'Human vs natural', on: 'text-missed', pill: 'bg-missed/15 border-missed/50' },
 ]
 
 export function ModeToggle({ compact = false }: { compact?: boolean }) {
   const mode = useApp((s) => s.mode)
   const setMode = useApp((s) => s.setMode)
+  // the old 'difference' mode (e.g. from a saved state) shows as Harmonized
+  const shown: Mode = mode === 'difference' ? 'harmonized' : mode
   return (
-    <div role="radiogroup" aria-label="Fire record" className="flex rounded-md border border-line bg-ink/40 p-0.5">
+    <div role="radiogroup" aria-label="Fire record" className="flex rounded border border-line bg-ink/40 p-0.5">
       {MODES.map((m) => {
-        const active = mode === m.id
+        const active = shown === m.id
         return (
           <button
             key={m.id}
             role="radio"
             aria-checked={active}
             onClick={() => setMode(m.id)}
-            className={`relative flex-1 whitespace-nowrap rounded px-3 py-1.5 font-mono text-[11px] tracking-wider uppercase transition-colors ${
+            className={`relative flex-1 rounded px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors ${
               active ? m.on : 'text-dim hover:text-text'
-            }`}
+            } ${compact ? 'px-2' : ''}`}
           >
             {active && (
               <motion.span
@@ -44,6 +48,8 @@ export function ModeToggle({ compact = false }: { compact?: boolean }) {
   )
 }
 
+const fmtDeg = (v: number, pos: string, neg: string) => `${Math.abs(v).toFixed(1)}°${v >= 0 ? pos : neg}`
+
 function UtcClock() {
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
@@ -51,10 +57,21 @@ function UtcClock() {
     return () => clearInterval(t)
   }, [])
   const iso = now.toISOString()
+  const sun = sunPosition(now)
   return (
-    <div className="text-right leading-tight">
-      <div className="font-mono text-sm tabular-nums text-text">{iso.slice(11, 19)}</div>
-      <div className="label">UTC · {iso.slice(0, 10)}</div>
+    <div className="flex items-center gap-4 leading-tight">
+      <div className="hidden text-right xl:block" title="Subsolar point: where the Sun is directly overhead right now">
+        <div className="font-mono text-sm text-text">
+          {fmtDeg(sun.lat, 'N', 'S')} {fmtDeg(sun.lng, 'E', 'W')}
+        </div>
+        <div className="label">Sun overhead</div>
+      </div>
+      <div className="text-right">
+        <div className="font-mono text-sm text-text">{iso.slice(11, 19)}</div>
+        <div className="label">
+          UTC <span className="text-dim/80">{iso.slice(0, 10)}</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -64,9 +81,9 @@ export function MockBadge() {
   return (
     <span
       title="Numbers are placeholders until the backend is connected"
-      className="rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 font-mono text-[9px] tracking-widest whitespace-nowrap text-warn"
+      className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn"
     >
-      MOCK DATA — NOT REAL RESULTS
+      Sample data, not results
     </span>
   )
 }
@@ -79,22 +96,20 @@ export function TourButton({ className = '' }: { className?: string }) {
     <button
       data-tour-btn
       onClick={() => (touring ? stopTour() : startTour())}
-      className={`rounded border px-3 py-1.5 font-mono text-[11px] tracking-wider whitespace-nowrap uppercase transition-colors ${
+      className={`rounded border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors ${
         touring ? 'border-missed/50 bg-missed/15 text-missed' : 'border-cyan/40 text-cyan hover:bg-cyan/10'
       } ${className}`}
     >
-      {touring ? '■ Stop tour' : '▶ Tour'}
+      {touring ? 'Stop tour' : 'Start tour'}
     </button>
   )
 }
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="leading-tight">
-        <div className="font-semibold tracking-[0.28em]">THERMORA</div>
-        <div className="label hidden lg:block">MODIS × VIIRS · the corrected fire record</div>
-      </div>
+    <div className="leading-tight">
+      <span className="wordmark text-[20px]">Thermora</span>
+      <div className="label hidden lg:block">Human or natural? The corrected fire record</div>
     </div>
   )
 }
@@ -105,9 +120,9 @@ export default function TopBar({ compact = false }: { compact?: boolean }) {
     <button
       onClick={() => setAbout(true)}
       aria-label="About and methods"
-      className="rounded border border-line px-2.5 py-1.5 font-mono text-[11px] text-dim uppercase hover:text-text"
+      className="rounded border border-line px-2.5 py-1.5 text-[13px] text-dim hover:text-text"
     >
-      {compact ? 'ⓘ' : 'ⓘ Methods'}
+      Methods
     </button>
   )
 
