@@ -2,7 +2,7 @@
 
 **Read first: `BACKEND_WANTS.md` (what each endpoint powers, and priorities).**
 
-**Status:** the frontend is finished against mock data with exactly these shapes. When the backend serves them, we set `VITE_API_URL=<your base URL>` and **nothing else in the UI changes**. Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
+**Status:** the frontend calls **`https://zorgons-thermora-776b3.containers.snapdeploy.app`** (checks `GET /health` at startup). It runs in **hybrid mode**: each endpoint below is used as soon as it answers with the right shape; anything missing (return **404**), failing or malformed falls back to sample data, and the on-screen badge says so. **Ship endpoints one at a time. No frontend change is needed.** Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
 
 Backend team: the **decisions in section 1** block us. Please answer them at the bottom of this file or tell us directly.
 

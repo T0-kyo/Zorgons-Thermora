@@ -7,7 +7,7 @@
 
 ## How to use this list
 
-The app is **finished on sample data**. Every screen below already works; it just shows mock numbers and a "Sample data, not results" badge. Your job is to replace the mock with real numbers, endpoint by endpoint. Each section is one part of the app, ordered by priority.
+The app is **finished on sample data** and already points at **`https://zorgons-thermora-776b3.containers.snapdeploy.app`** (it calls `/health` first). It uses **each endpoint the moment it exists**: until then that part shows sample data, and the badge reads "Sample data" → "Partly sample data" → "Live data". So ship endpoints one at a time, in priority order; **no frontend change is needed**. Endpoints that aren't built yet must return **404**. Each section below is one part of the app.
 
 | Priority | Meaning | Endpoints |
 |---|---|---|
