@@ -1,7 +1,8 @@
 namespace api.DTOs;
 
+
 public record MetaDto(
-    string DataVersion,
-    string[] Sources,
-    string[] Years
+    string MinDate,
+    string MaxDate,
+    long TotalDetections
 );

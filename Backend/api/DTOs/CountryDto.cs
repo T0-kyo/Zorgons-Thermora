@@ -1,6 +1,6 @@
 namespace api.DTOs;
 
-public record RegionDto(
+public record CountryDto(
     string Id,
     string Name
 );
