@@ -8,9 +8,11 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 import { regionByCode, regionById } from '../shared/regions'
 import { fetchSummary, fetchYearTotals } from './data'
+import { dataYears } from '../shared/api'
 import { humanLabel, weekendDip } from '../charts/stats'
 
-const TOUR_YEAR = 2019
+/** the tour's year: 2019 on sample data, else the latest year the backend has */
+const tourYear = () => (dataYears && (2019 < dataYears.min || 2019 > dataYears.max) ? dataYears.max : 2019)
 type Ctx = { year: number }
 interface Step {
   ms: number
@@ -30,6 +32,25 @@ const pct = (v: number) => `${v.toFixed(0)}%`
 /** Area likelihoods come from the same source as the panels (cells weighted by fires). */
 const likelihood = async (year: number, id: string) => (await fetchYearTotals(year)).byRegion[id]?.human ?? 0
 
+/** First of these ISO codes that the current country list has (backend list or default). */
+const pick = (...codes: string[]) => codes.find((c) => regionByCode(c)) ?? null
+const nameOf = (code: string | null) => (code ? (regionByCode(code)?.name ?? code) : '')
+
+// Countries for the story, chosen from what the backend serves (fallbacks for the sample list).
+const BURN = () => pick('CHN', 'IND', 'AGO')         // crop / savanna burning: strong human signal
+const LOCAL = () => pick('EGY')                      // Nile Delta rice straw: the local story
+const WILD = () => pick('USA', 'GRC', 'CAN', 'AUS')  // wildfires: more natural
+const BIG = () => pick('AGO', 'COD', 'BRA')          // largest fire load
+
+const humanCaption = async (code: string | null, year: number, intro: string) => {
+  if (!code) return intro
+  const id = cid(code) ?? ''
+  const [s, h] = await Promise.all([fetchSummary(id, year), likelihood(year, id)])
+  const dip = weekendDip(s.weekdayCounts)
+  const rhythm = Math.abs(dip) >= 3 ? ` Fires change ${dip > 0 ? '+' : ''}${dip.toFixed(0)}% at weekends.` : ' Little weekly rhythm.'
+  return `${nameOf(code)}: ${intro} ${humanLabel(h)}, human likelihood ${h.toFixed(2)}.${rhythm}`
+}
+
 const STEPS: Step[] = [
   {
     ms: 6500,
@@ -46,47 +67,41 @@ const STEPS: Step[] = [
   },
   {
     ms: 6500,
-    go: focus('IND', 'harmonized'),
+    go: () => focus(BURN(), 'harmonized')(),
     text: async ({ year }) => {
-      const s = await fetchSummary(cid('IND') ?? '', year)
-      return `India: small fires from crop residue. The legacy record undercounts them by ${pct(s.undercountPct)}.`
+      const code = BURN(); if (!code) return 'Small agricultural fires are the ones the old record misses most.'
+      const s = await fetchSummary(cid(code) ?? '', year)
+      return `${nameOf(code)}: many small fires. The legacy record undercounts them by ${pct(s.undercountPct)}.`
     },
   },
   {
     ms: 7500,
-    go: focus('IND', 'human'),
-    text: async ({ year }) => {
-      const [s, h] = await Promise.all([fetchSummary(cid('IND') ?? '', year), likelihood(year, cid('IND') ?? '')])
-      const dip = weekendDip(s.weekdayCounts)
-      if (h >= 0.66 && dip < -3)
-        return `Crop-residue burning: a strong human rhythm. Fires drop ${Math.abs(dip).toFixed(0)}% at weekends. Human likelihood ${h.toFixed(2)}.`
-      return `Crop-residue burning: ${humanLabel(h).toLowerCase()}, with a human likelihood of ${h.toFixed(2)}.`
-    },
+    go: () => focus(BURN(), 'human')(),
+    text: ({ year }) => humanCaption(BURN(), year, 'agricultural burning.'),
   },
   {
     ms: 7500,
-    go: focus('CAN', 'human'),
-    text: async ({ year }) => {
-      const [s, h] = await Promise.all([fetchSummary(cid('CAN') ?? '', year), likelihood(year, cid('CAN') ?? '')])
-      const dip = weekendDip(s.weekdayCounts)
-      const rhythm = Math.abs(dip) < 3 ? 'and barely any weekly rhythm' : `with a ${Math.abs(dip).toFixed(0)}% weekend change`
-      if (h < 0.4) return `Canada. Boreal lightning fires: mostly natural. Human likelihood ${h.toFixed(2)}, ${rhythm}.`
-      return `Canada: ${humanLabel(h).toLowerCase()}, human likelihood ${h.toFixed(2)}, ${rhythm}.`
-    },
+    go: () => focus(LOCAL(), 'human')(),
+    text: ({ year }) => humanCaption(LOCAL(), year, 'rice-straw burning in the Nile Delta.'),
   },
   {
     ms: 7500,
-    go: focus('AGO', 'harmonized'),
+    go: () => focus(WILD(), 'human')(),
+    text: ({ year }) => humanCaption(WILD(), year, 'wildfire country.'),
+  },
+  {
+    ms: 7500,
+    go: () => focus(BIG(), 'harmonized')(),
     text: async ({ year }) => {
-      const s = await fetchSummary(cid('AGO') ?? '', year)
-      const trend = s.trendSurvives ? 'Its long-term trend holds after correction.' : 'Its long-term trend changes once corrected.'
-      return `Angola is among the most fire-active countries on Earth, and the legacy record undercounts it by ${pct(s.undercountPct)}. ${trend}`
+      const code = BIG(); if (!code) return 'The corrected record changes the picture most where fires are small and frequent.'
+      const s = await fetchSummary(cid(code) ?? '', year)
+      return `${nameOf(code)} is among the most fire-active countries on Earth. The legacy record undercounts it by ${pct(s.undercountPct)}.`
     },
   },
   {
     ms: 8000,
     go: focus(null, 'human'),
-    text: 'The corrected record counts the small fires the old one missed, and shows where fire is likely human-driven or natural. Search any place to explore.',
+    text: 'The harmonized record counts the small fires the old one missed, and shows where fire is likely human-driven or natural. Search any place to explore.',
   },
 ]
 
@@ -101,14 +116,14 @@ export default function Tour() {
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     ;(async () => {
       app().setPlaying(false)
-      app().setYear(TOUR_YEAR)
+      app().setYear(tourYear())
       for (let i = 0; i < STEPS.length; i++) {
         if (cancelled) return
         const step = STEPS[i]
         step.go?.()
         let text: string
         try {
-          text = typeof step.text === 'string' ? step.text : await step.text({ year: TOUR_YEAR })
+          text = typeof step.text === 'string' ? step.text : await step.text({ year: tourYear() })
         } catch {
           text = ''
         }

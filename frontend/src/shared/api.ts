@@ -15,6 +15,7 @@ import type { Feature } from 'geojson'
 import { BLURBS, REGIONS } from './regions'
 import { mockCells, mockDaily, mockDay, mockProgress, mockSummary } from './mock'
 import { useDataStatus } from './dataStatus'
+import { useApp } from './store'
 export { searchPlaces, placeFromPoint, regionAt } from './places'
 
 const DEFAULT_API = 'https://zorgons-thermora-776b3.containers.snapdeploy.app'
@@ -72,7 +73,7 @@ export async function checkHealth() {
     const h = await get<{ status?: string }>('/health', true)
     const up = String(h?.status).toLowerCase() === 'healthy'
     setBackend(up ? 'up' : 'down')
-    if (up) void syncRegions()
+    if (up) { void syncRegions(); void syncMeta() }
   } catch {
     setBackend('down')
   }
@@ -95,6 +96,19 @@ async function syncRegions() {
   } catch {
     /* keep built-in regions */
   }
+}
+/** Years the backend actually has (from /api/meta). null until known. */
+export let dataYears: { min: number; max: number } | null = null
+/** Open on the latest year with data, so the globe isn't empty on landing. */
+async function syncMeta() {
+  try {
+    const m = await get<Obj>('/meta')
+    const min = +String(m?.minDate ?? '').slice(0, 4), max = +String(m?.maxDate ?? '').slice(0, 4)
+    if (!min || !max) return
+    dataYears = { min, max }
+    const st = useApp.getState()
+    if (!st.touring && (st.year < min || st.year > max)) st.setYear(max)
+  } catch { /* keep the default year */ }
 }
 checkHealth()
 
@@ -148,7 +162,8 @@ function normSummary(x: unknown, regionId: string, year: number): RegionSummary 
       legacy: clamp01(num(hs?.legacy, num(x.humanScoreLegacy, 0.5))),
       harmonized: clamp01(num(hs?.harmonized, num(x.humanScoreHarmonized, 0.5))),
     },
-    weekdayCounts: weekday.length === 7 ? weekday : [0, 0, 0, 0, 0, 0, 0],
+    // the team backend counts EXTRACT(dow) 0..6 = Sun..Sat; our charts are Monday-first
+    weekdayCounts: weekday.length === 7 ? (x.weekdayStart === 'monday' ? weekday : [...weekday.slice(1), weekday[0]]) : [0, 0, 0, 0, 0, 0, 0],
     trend,
     trendSurvives: Boolean(x.trendSurvives),
     verdict: typeof x.verdict === 'string' ? x.verdict : '',
@@ -256,9 +271,10 @@ async function countriesToRegions(x: unknown): Promise<Region[] | null> {
  */
 function usableCells(cells: FireCell[] | null): FireCell[] | null {
   if (!cells) return null
-  if (!cells.length) return null
-  const mapped = cells.map((c) => ({ ...c, regionId: toRegionId(c.regionId) }))
-  const humanReal = mapped.some((c) => c.human > 0.001 && c.human < 0.999) || mapped.some((c) => c.human >= 0.999)
+  if (!cells.length) return [] // a healthy backend saying "no fires this year" is real data
+  const humanReal = cells.some((c) => c.human > 0.001)
+  // backend: COALESCE(AVG(score), 0.0) → 0.0 means "no score for this cell", not "natural": show as neutral
+  const mapped = cells.map((c) => ({ ...c, regionId: toRegionId(c.regionId), human: c.human > 0.001 ? c.human : 0.5 }))
   if (!humanReal) {
     console.warn('[thermora] backend cells have no human likelihood yet (all 0) - keeping sample data')
     return null
@@ -271,7 +287,7 @@ function usableCells(cells: FireCell[] | null): FireCell[] | null {
 }
 
 export async function getSummary(regionId: string, year: number): Promise<RegionSummary> {
-  return hybrid('summary', `/regions/${encodeURIComponent(regionId)}/summary?year=${year}`, (x) => normSummary(x, regionId, year), () => mockSummary(regionId, year))
+  return hybrid('summary', `/countries/${encodeURIComponent(regionId)}/summary?year=${year}`, (x) => normSummary(x, regionId, year), () => mockSummary(regionId, year))
 }
 
 /** Query string for a region or a place target. */
@@ -287,27 +303,35 @@ export async function getProgress(t: Target): Promise<ProgressSummary> {
 
 /** Every day of a year (for the calendar heatmap). */
 export async function getDaily(t: Target, year: number): Promise<DailyPoint[]> {
-  // The backend doesn't filter /daily by lat/lng yet (it would return worldwide totals): sample data for places.
-  if (t.kind === 'place') {
-    useDataStatus.getState().mark('daily', 'mock')
-    return mockDaily(t, year)
-  }
-  // Country: one call; the backend filters by its own country label (= our id).
-  const list = await hybrid('daily', `/daily?year=${year}&region=${encodeURIComponent(t.regionId)}`, (x) => {
-    const d = normDaily(x); return d && d.length ? d : null
-  }, async () => [] as DailyPoint[])
-  if (!list.length) {
-    useDataStatus.getState().mark('daily', 'mock')
-    return mockDaily(t, year)
-  }
-  const byDate = new Map(list.map((p) => [p.date, p]))
-  useDataStatus.getState().mark('daily', 'real')
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  // country → region=<id>; place → lat/lng/radiusKm (the backend filters both). Days without fires are omitted.
+  const list = await hybrid('daily', `/daily?year=${year}&${targetQs(t)}`, normDaily, () => mockDaily(t, year))
+  return [...list].sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** One day's detail (for the day card and day-vs-day comparison). date = YYYY-MM-DD */
 export async function getDay(t: Target, date: string): Promise<DayDetail> {
-  return hybrid('day', `/day?date=${date}&${targetQs(t)}`, normDay, () => mockDay(t, date))
+  // The backend's /day returns only counts; derive the full card from the same daily series the
+  // calendar shows (so numbers always agree), and the area's human likelihood from /progress.
+  const year = +date.slice(0, 4)
+  const [daily, prog] = await Promise.all([getDaily(t, year), getProgress(t).catch(() => null)])
+  if (useDataStatus.getState().sources.daily !== 'real') return mockDay(t, date)
+  const wdOf = (d: string) => (new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7
+  const n = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 864e5
+  const total = daily.reduce((s2, p) => s2 + p.harmonized, 0)
+  const yearAvg = total / n || 1
+  const wd = wdOf(date)
+  const sameWd = daily.filter((p) => wdOf(p.date) === wd).reduce((s2, p) => s2 + p.harmonized, 0) / (n / 7) || 1
+  const d = daily.find((p) => p.date === date) ?? { date, legacy: 0, harmonized: 0 }
+  const rank = d.harmonized > 0 ? [...daily].sort((a, b) => b.harmonized - a.harmonized).findIndex((p) => p.date === date) + 1 : daily.length + 1
+  useDataStatus.getState().mark('day', 'real')
+  return {
+    date, weekday: wd, isWeekend: wd >= 5,
+    firesLegacy: d.legacy, firesHarmonized: d.harmonized,
+    humanLikelihood: prog ? prog.humanLikelihood.harmonized : 0.5,
+    vsYearAvgPct: +(((d.harmonized - yearAvg) / yearAvg) * 100).toFixed(1),
+    vsWeekdayAvgPct: +(((d.harmonized - sameWd) / sameWd) * 100).toFixed(1),
+    rankInYear: rank,
+  }
 }
 
 /** Current target from app state: the place if one is picked, else the region, else null (global). */
@@ -356,14 +380,4 @@ function normDaily(x: unknown): DailyPoint[] | null {
   return x.map((d: Obj) => ({ date: ymd(d.date), legacy: num(d.legacy), harmonized: num(d.harmonized, num(d.legacy)) }))
 }
 
-function normDay(x: unknown): DayDetail | null {
-  if (!isObj(x) || !('date' in x) || !('firesHarmonized' in x)) return null
-  const date = ymd(x.date)
-  const wd = 'weekday' in x ? num(x.weekday) : (new Date(date + 'T00:00:00Z').getUTCDay() + 6) % 7
-  return {
-    date, weekday: wd, isWeekend: 'isWeekend' in x ? Boolean(x.isWeekend) : wd >= 5,
-    firesLegacy: num(x.firesLegacy), firesHarmonized: num(x.firesHarmonized),
-    humanLikelihood: clamp01(num(x.humanLikelihood, 0.5)),
-    vsYearAvgPct: num(x.vsYearAvgPct), vsWeekdayAvgPct: num(x.vsWeekdayAvgPct), rankInYear: num(x.rankInYear),
-  }
-}
+// (normDay removed: the day card is derived from /daily, see getDay)

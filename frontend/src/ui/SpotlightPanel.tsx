@@ -57,9 +57,11 @@ export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlac
               <div className="text-right">
                 <div className="label">Undercount</div>
                 <CountUp value={s.undercountPct} format={(v) => `+${v.toFixed(1)}%`} className="readout block text-[30px] text-missed" />
-                <div className="text-[12px] text-dim">
+                {s.undercountCi[0] !== s.undercountCi[1] && (
+                  <div className="text-[12px] text-dim">
                   range <span className="font-mono">{s.undercountCi[0]}</span> to <span className="font-mono">{s.undercountCi[1]}%</span>
                 </div>
+                )}
               </div>
             </div>
             <div className="mt-3">
@@ -76,9 +78,11 @@ export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlac
               <WeeklyChart counts={s.weekdayCounts} />
             </div>
           </Section>
-          <Section q="Q3" title="Does the trend hold after correction?">
-            <TrendChart trend={s.trend} year={year} mode={mode} survives={s.trendSurvives} verdict={s.verdict} />
-          </Section>
+          {s.trend.length > 1 && (
+            <Section q="Q3" title="Does the trend hold after correction?">
+              <TrendChart trend={s.trend} year={year} mode={mode} survives={s.trendSurvives} verdict={s.verdict} />
+            </Section>
+          )}
         </div>
       )}
     </section>
