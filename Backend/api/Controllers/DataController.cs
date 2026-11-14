@@ -27,7 +27,7 @@ public class DataController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("regions/{id}/summary")]
+    [HttpGet("countries/{id}/summary")]
     public async Task<IActionResult> GetRegionSummary(string id, [FromQuery] int? year)
     {
         if (year.HasValue && (year < 2000 || year > 2026))
