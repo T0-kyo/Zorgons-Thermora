@@ -24,7 +24,8 @@ const API = (ENV || DEFAULT_API).replace(/\/+$/, '')
 /** data endpoints live under /api on the team backend (ASP.NET [Route("api")]); /health is at the root */
 const DATA_PREFIX = ((import.meta.env.VITE_API_PREFIX as string | undefined) ?? '/api').replace(/\/+$/, '')
 
-const TIMEOUT_MS = 8000
+/** generous: the backend reads its parquet files from HuggingFace, so cold queries can be slow */
+const TIMEOUT_MS = 30000
 
 async function get<T>(path: string, root = false): Promise<T> {
   const ctrl = new AbortController()
@@ -61,14 +62,19 @@ async function live<T>(endpoint: string, path: string, normalize: (x: unknown) =
 export async function checkHealth() {
   const { setBackend } = useDataStatus.getState()
   setBackend('checking')
-  try {
-    const h = await get<{ status?: string }>('/health', true)
-    const up = String(h?.status).toLowerCase() === 'healthy'
-    setBackend(up ? 'up' : 'down')
-    if (up) { void syncRegions(); void syncMeta() }
-  } catch {
-    setBackend('down')
+  // the container may be waking up: try a few times before calling it unreachable
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const h = await get<{ status?: string }>('/health', true)
+      if (String(h?.status).toLowerCase() === 'healthy') {
+        setBackend('up')
+        void syncRegions(); void syncMeta()
+        return
+      }
+    } catch { /* retry */ }
+    if (attempt < 4) await new Promise((r) => setTimeout(r, 3000 * attempt))
   }
+  setBackend('down')
 }
 
 /**
@@ -197,6 +203,7 @@ export async function getCells(year: number, regionId?: string | null): Promise<
       return live('cells', `/cells?year=${year}`, (x) => usableCells(normCells(x)))
     })()
     yearCells.set(year, p)
+    p.catch(() => yearCells.delete(year)) // a failed load is retried next time, never cached
   }
   const all = await p
   return regionId ? all.filter((c) => c.regionId === regionId) : all

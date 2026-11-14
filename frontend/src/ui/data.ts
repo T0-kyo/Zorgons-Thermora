@@ -2,6 +2,7 @@
  * OWNER: Agent B. React hooks over src/shared/api.ts (never fetch() here).
  * Results are cached per key so scrubbing years or flipping regions doesn't refetch.
  */
+import { useDataStatus } from '../shared/dataStatus'
 import { useEffect, useState } from 'react'
 import { getDaily, getDay, getGlobalSummary, getProgress, getSummary } from '../shared/api'
 import { REGIONS } from '../shared/regions'
@@ -88,6 +89,7 @@ export { fmtHuman } from '../charts/stats'
 
 export function useYearTotals(year: number) {
   const [data, setData] = useState<YearTotals | null>(null)
+  const version = useDataStatus((s) => `${s.backend}:${s.regionsVersion}`) // reload once the backend / country list arrives
   useEffect(() => {
     let live = true
     fetchYearTotals(year)
@@ -96,7 +98,7 @@ export function useYearTotals(year: number) {
     return () => {
       live = false
     }
-  }, [year])
+  }, [year, version])
   return data
 }
 

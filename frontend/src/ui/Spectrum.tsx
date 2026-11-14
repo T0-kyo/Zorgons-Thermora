@@ -30,11 +30,12 @@ const ramp = (t: number) => {
 
 function useYearCells(year: number) {
   const [cells, setCells] = useState<FireCell[]>([])
+  const up = useDataStatus((st) => st.backend === 'up')
   useEffect(() => {
     let live = true
     getCells(year).then((c) => live && setCells(c)).catch(() => {})
     return () => { live = false }
-  }, [year])
+  }, [year, up])
   return cells
 }
 

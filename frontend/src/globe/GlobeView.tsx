@@ -11,6 +11,7 @@
  * - accessors memoised so React re-renders don't re-aggregate the hex layer
  * - rendering pauses when the tab is hidden
  */
+import { useDataStatus } from '../shared/dataStatus'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import * as THREE from 'three'
@@ -130,6 +131,7 @@ export default function GlobeView() {
   // ---- data ---------------------------------------------------------------
   // per-year cache + prefetch of neighbours so playback never waits on the network
   const yearCache = useRef(new Map<number, Promise<FireCell[]>>())
+  const backendUp = useDataStatus((s) => s.backend === 'up') // retry once the backend wakes up
   const cellsFor = useCallback((y: number) => {
     const cache = yearCache.current
     if (!cache.has(y)) cache.set(y, getCells(y).catch((e) => { cache.delete(y); throw e }))
@@ -143,7 +145,7 @@ export default function GlobeView() {
       if (n >= YEARS.min && n <= YEARS.max) cellsFor(n).catch(() => {})
     }
     return () => { live = false }
-  }, [year, cellsFor])
+  }, [year, cellsFor, backendUp])
 
   useEffect(() => {
     let live = true
