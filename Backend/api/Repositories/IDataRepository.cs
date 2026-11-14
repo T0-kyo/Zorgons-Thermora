@@ -10,7 +10,7 @@ public interface IDataRepository
     Task<ProgressDto> GetProgressAsync(string? region, double? lat, double? lng, double? radiusKm);
     Task<IEnumerable<DailyDto>> GetDailyAsync(int year, string? region, double? lat, double? lng, double? radiusKm);
     Task<DailyDto> GetDayAsync(string date, string? region, double? lat, double? lng, double? radiusKm);
-    Task<IEnumerable<RegionDto>> GetRegionsAsync();
+    Task<IEnumerable<CountryDto>> GetCountriesAsync();
     Task<RegionSummaryDto> GetGlobalSummaryAsync(int? year);
     Task<MetaDto> GetMetaAsync();
 }
