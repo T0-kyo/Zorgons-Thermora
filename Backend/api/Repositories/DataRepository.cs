@@ -11,8 +11,7 @@ public class DuckDbRepository : IDataRepository
     private readonly IDuckDbService _db;
     private readonly IMemoryCache _cache;
 
-    // Hardcoded list based on your Hugging Face screenshot
-        // Tuple: (File Name on Hugging Face, Display Name for Frontend)
+    // Tuple: (File Name on Hugging Face, Display Name for Frontend)
     private static readonly (string FileName, string DisplayName)[] AllCountries = {
         ("Angola", "Angola"), 
         ("China", "China"), 
@@ -34,17 +33,26 @@ public class DuckDbRepository : IDataRepository
     private string GetEngineerPath(string? country)
     {
         if (!string.IsNullOrEmpty(country))
-            return $"'{_db.GetBaseUrl()}/countries/{country}.parquet'";
+        {
+            // Replace spaces with underscores for the file name
+            string fileName = country.Replace(" ", "_");
+            return $"'{_db.GetBaseUrl()}/countries/{fileName}.parquet'";
+        }
         
-        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c}.parquet'"));
+        // Use c.FileName to extract just the string from the tuple
+        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}.parquet'"));
     }
 
     private string GetScientistPath(string? country)
     {
         if (!string.IsNullOrEmpty(country))
-            return $"'{_db.GetBaseUrl()}/countries/{country}_human_likelihood.parquet'";
+        {
+            // Replace spaces with underscores for the file name
+            string fileName = country.Replace(" ", "_");
+            return $"'{_db.GetBaseUrl()}/countries/{fileName}_human_likelihood.parquet'";
+        }
         
-        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c}_human_likelihood.parquet'"));
+        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}_human_likelihood.parquet'"));
     }
 
     private static double? GetNullableDouble(DbDataReader reader, string columnName)
@@ -61,7 +69,6 @@ public class DuckDbRepository : IDataRepository
         using var connection = _db.CreateConnection();
         using var cmd = connection.CreateCommand();
 
-        // Using the dynamic path helpers here (no quotes around the interpolation)
         cmd.CommandText = $@"
             SELECT 
                 ROUND(e.latitude * 2) / 2 AS Lat,
@@ -115,32 +122,47 @@ public class DuckDbRepository : IDataRepository
         using var connection = _db.CreateConnection();
         using var cmd = connection.CreateCommand();
 
+        string trendUrl = $"{_db.GetBaseUrl()}/Vegetation_Fire_Trend_Analysis_2018_2024.parquet";
+
         cmd.CommandText = $@"
+            WITH MainData AS (
+                SELECT 
+                    SUM(e.modis_detections) AS FiresLegacy,
+                    SUM(e.n_detections) AS FiresHarmonized,
+                    COUNT(*) AS TotalFires,
+                    AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END) AS HumanScoreLegacy,
+                    AVG(s.human_association_score) AS HumanScoreHarmonized,
+                    AVG(s.ci_lower) AS HumanScoreLow,
+                    AVG(s.ci_upper) AS HumanScoreHigh,
+                    COUNT(s.fire_id) AS ScoredFires,
+                    COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
+                    COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
+                    COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 0 THEN 1 END) AS Sun,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 1 THEN 1 END) AS Mon,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 2 THEN 1 END) AS Tue,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 3 THEN 1 END) AS Wed,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 4 THEN 1 END) AS Thu,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 5 THEN 1 END) AS Fri,
+                    COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 6 THEN 1 END) AS Sat
+                FROM read_parquet({GetEngineerPath(id)}) e
+                LEFT JOIN read_parquet({GetScientistPath(id)}) s ON e.fire_id = s.fire_id
+                WHERE EXTRACT(YEAR FROM e.date) = ? AND e.fire_type = 0
+            ),
+            TrendData AS (
+                SELECT * FROM read_parquet('{trendUrl}')
+                WHERE REPLACE(country, '_', ' ') = ?
+            )
             SELECT 
-                SUM(e.modis_detections) AS FiresLegacy,
-                SUM(e.n_detections) AS FiresHarmonized,
-                COUNT(*) AS TotalFires,
-                AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END) AS HumanScoreLegacy,
-                AVG(s.human_association_score) AS HumanScoreHarmonized,
-                AVG(s.ci_lower) AS HumanScoreLow,
-                AVG(s.ci_upper) AS HumanScoreHigh,
-                COUNT(s.fire_id) AS ScoredFires,
-                COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
-                COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
-                COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 0 THEN 1 END) AS Sun,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 1 THEN 1 END) AS Mon,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 2 THEN 1 END) AS Tue,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 3 THEN 1 END) AS Wed,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 4 THEN 1 END) AS Thu,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 5 THEN 1 END) AS Fri,
-                COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 6 THEN 1 END) AS Sat
-            FROM read_parquet({GetEngineerPath(id)}) e
-            LEFT JOIN read_parquet({GetScientistPath(id)}) s ON e.fire_id = s.fire_id
-            WHERE EXTRACT(YEAR FROM e.date) = ? AND e.fire_type = 0
+                m.*,
+                t.sen_slope_per_year, t.trend_direction, t.trend_significance, t.p_value,
+                t.""2018"", t.""2019"", t.""2020"", t.""2021"", t.""2022"", t.""2023"", t.""2024""
+            FROM MainData m
+            LEFT JOIN TrendData t ON 1=1
         ";
 
         cmd.Parameters.Add(new DuckDBParameter { Value = filterYear });
+        cmd.Parameters.Add(new DuckDBParameter { Value = id });
 
         using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
@@ -149,6 +171,26 @@ public class DuckDbRepository : IDataRepository
             int harmonized = reader["FiresHarmonized"] != DBNull.Value ? Convert.ToInt32(reader["FiresHarmonized"]) : 0;
             int totalFires = Convert.ToInt32(reader["TotalFires"]);
             double undercount = legacy == 0 ? 0 : (double)(harmonized - legacy) / legacy * 100;
+
+            TrendDto? trend = null;
+            if (reader["sen_slope_per_year"] != DBNull.Value)
+            {
+                var series = new List<TrendPointDto>();
+                string[] years = { "2018", "2019", "2020", "2021", "2022", "2023", "2024" };
+                foreach (var y in years)
+                {
+                    if (reader[y] != DBNull.Value)
+                        series.Add(new TrendPointDto(int.Parse(y), Convert.ToInt64(reader[y])));
+                }
+
+                trend = new TrendDto(
+                    Series: series,
+                    Slope: Convert.ToDouble(reader["sen_slope_per_year"]),
+                    Direction: reader["trend_direction"].ToString() ?? "",
+                    Significance: reader["trend_significance"].ToString() ?? "",
+                    PValue: Convert.ToDouble(reader["p_value"])
+                );
+            }
 
             var result = new RegionSummaryDto(
                 UndercountPct: Math.Round(undercount, 1),
@@ -169,13 +211,14 @@ public class DuckDbRepository : IDataRepository
                     High: Convert.ToInt32(reader["ConfHigh"])
                 ),
                 ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
-                TotalFires: totalFires
+                TotalFires: totalFires,
+                Trend: trend
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
             return result;
         }
-        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0);
+        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0, null);
     }
 
     public async Task<ProgressDto> GetProgressAsync(string? region, double? lat, double? lng, double? radiusKm)
@@ -474,13 +517,14 @@ public class DuckDbRepository : IDataRepository
                     High: Convert.ToInt32(reader["ConfHigh"])
                 ),
                 ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
-                TotalFires: totalFires
+                TotalFires: totalFires,
+                Trend: null
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
             return result;
         }
-        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0);
+        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0, null);
     }
 
     public async Task<IEnumerable<CountryDto>> GetCountriesAsync()
@@ -515,8 +559,9 @@ public class DuckDbRepository : IDataRepository
             int harmonized = reader["Harmonized"] != DBNull.Value ? Convert.ToInt32(reader["Harmonized"]) : 0;
             double undercount = legacy == 0 ? 0 : (double)(harmonized - legacy) / legacy * 100;
 
-            string id = reader["Id"].ToString() ?? "";
-            string name = id == "United States" ? "United States of America" : id;
+            string rawCountry = reader["Id"].ToString() ?? "";
+            string id = rawCountry.Replace(" ", "_");
+            string name = rawCountry == "United States" ? "United States of America" : rawCountry;
 
             results.Add(new CountryDto(
                 Id: id,
