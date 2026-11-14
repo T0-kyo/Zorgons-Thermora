@@ -84,3 +84,9 @@ Update your own lines in every commit that changes status. Times are Cairo, Fri 
 - **Full contract and open questions: `frontend/API_CONTRACT.md`.**
 - Frontend (B) aggregates `GET /cells?year=` (no region) for the global and per-region undercount in the region list / overview, using (harmonized − legacy) / legacy. If the backend computes undercount differently, a `GET /summary?year=` (global) endpoint would keep these consistent with `/regions/:id/summary`.
 - Frontend expects: `GET /regions`, `GET /cells?year=&region=` (both `legacy` and `harmonized` counts per cell in one response), `GET /regions/:id/summary?year=`. Exact shapes: `src/shared/types.ts`.
+
+
+## Handoff — Sat 14 Nov, evening (Agent A → Agent B)
+Agent A is stopping for today. Full context in `frontend/HANDOFF.md`. Latest frontend: branch `frontend/final-backend`.
+- Blocked on backend: multi-file `read_parquet` must use a list `[...]` (breaks countries list, globe, global view, meta, places). Also US/UK id filter, US/UK trend, id whitelist (injection). Details and reasons in HANDOFF §4.
+- Next for B: verify once backend fixes land; switch to the new backend URL when sent; optional wake link / request staggering; fill the pitch deck's findings slide from live data.

@@ -6,7 +6,7 @@ They cannot talk to each other directly. **This file and `TASKS.md` are how they
 - **Agent A** — globe & 3D (directed by the teammate who set up this repo)
 - **Agent B** — app UI, panels, charts (directed by the second frontend teammate)
 
-**Agent B: if you are new to this project, read `frontend/AGENT_B_BRIEFING.md` first.** It has the full context (hackathon, science, product, your role).
+**Agent B: read `frontend/HANDOFF.md` first (latest, Sat 14 Nov evening): full state, backend contract, open backend requests and why, what's left.** `frontend/AGENT_B_BRIEFING.md` is the older original briefing (hackathon, science, product).
 
 ## Before you start any work
 1. `git fetch origin` and read the latest `frontend/TASKS.md` on `submain` **and** on the other agent's open branches.
@@ -31,8 +31,8 @@ If you need something in the other agent's area, **don't change it — add a req
 - **Real data only.** There is no sample, mock or placeholder data anywhere. Every number comes from the backend (`VITE_API_URL`, else the team's deployed URL). If a call fails, show "unavailable" and nothing in its place. A missing human score is shown as "no score" (grey on the globe), never as an invented value. Never add written claims about a country that don't come from the data.
 
 ## Git
-- **`main` is off-limits.** Never commit, push, merge, rebase onto, or open a PR into `main` — and never suggest doing so. It is only touched when the humans explicitly say so.
-- **`submain` is the integration branch** for all frontend work. Branch from `submain`, open PRs into `submain`; the humans merge them.
+- **Current workflow (since Sat 14 Nov):** the latest frontend lives on **`frontend/final-backend`**, built on `main`. Work goes onto `main` **only when the humans say "push"**, as a fast-forward (`git push origin <branch>:main`, after `git merge-base --is-ancestor origin/main HEAD`; if main moved, merge `origin/main` in and re-test first). Never force-push. Never push to `main` without the humans' go.
+- `submain` was the integration branch earlier in the hackathon; it is no longer where new work lands.
 - Branches: Agent A → `frontend/globe-<topic>`, Agent B → `frontend/ui-<topic>`. Never commit straight to `submain` either.
 - Keep PRs small. Rebase on `submain` before opening a PR.
 - Commit messages: `[A] …` or `[B] …` prefix.
