@@ -15,6 +15,8 @@ builder.Services.Configure<DataSettings>(
 builder.Services.AddSingleton<IDuckDbService, DuckDbService>();
 builder.Services.AddScoped<IDataRepository, DuckDbRepository>();
 
+builder.Services.AddMemoryCache();
+
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext()
