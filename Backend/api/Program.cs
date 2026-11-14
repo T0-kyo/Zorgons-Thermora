@@ -42,17 +42,15 @@ var app = builder.Build();
 
 
 
-app.MapControllers();
-
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
 
 app.UseSwagger();
 app.UseSwaggerUI();
-
 app.UseCors();
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapControllers();
 
 
 
