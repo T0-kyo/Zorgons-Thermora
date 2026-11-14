@@ -4,7 +4,6 @@ using DuckDB.NET.Data;
 using Microsoft.Extensions.Caching.Memory;
 using System.Data.Common;
 
-
 namespace api.Repositories;
 
 public class DuckDbRepository : IDataRepository
@@ -12,6 +11,18 @@ public class DuckDbRepository : IDataRepository
     private readonly IDuckDbService _db;
     private readonly IMemoryCache _cache;
 
+    // Hardcoded list based on your Hugging Face screenshot
+        // Tuple: (File Name on Hugging Face, Display Name for Frontend)
+    private static readonly (string FileName, string DisplayName)[] AllCountries = {
+        ("Angola", "Angola"), 
+        ("China", "China"), 
+        ("Egypt", "Egypt"), 
+        ("Greece", "Greece"), 
+        ("Oman", "Oman"),
+        ("United_Kingdom", "United Kingdom"), 
+        ("United_States", "United States of America"), 
+        ("Yemen", "Yemen")
+    };
 
     public DuckDbRepository(IDuckDbService db, IMemoryCache cache)
     {
@@ -19,8 +30,22 @@ public class DuckDbRepository : IDataRepository
         _cache = cache;
     }
 
-    private string GetEngineerPath() => $"{_db.GetBaseUrl()}/harmonized_data.parquet";
-    private string GetScientistPath() => $"{_db.GetBaseUrl()}/fire_level_assessment.parquet";
+    // Returns a single quoted path for one country, or a comma-separated list of paths for all
+    private string GetEngineerPath(string? country)
+    {
+        if (!string.IsNullOrEmpty(country))
+            return $"'{_db.GetBaseUrl()}/countries/{country}.parquet'";
+        
+        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c}.parquet'"));
+    }
+
+    private string GetScientistPath(string? country)
+    {
+        if (!string.IsNullOrEmpty(country))
+            return $"'{_db.GetBaseUrl()}/countries/{country}_human_likelihood.parquet'";
+        
+        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c}_human_likelihood.parquet'"));
+    }
 
     private static double? GetNullableDouble(DbDataReader reader, string columnName)
     {
@@ -36,8 +61,7 @@ public class DuckDbRepository : IDataRepository
         using var connection = _db.CreateConnection();
         using var cmd = connection.CreateCommand();
 
-        string countryFilter = string.IsNullOrEmpty(regionId) ? "" : "AND e.country = ?";
-
+        // Using the dynamic path helpers here (no quotes around the interpolation)
         cmd.CommandText = $@"
             SELECT 
                 ROUND(e.latitude * 2) / 2 AS Lat,
@@ -50,16 +74,15 @@ public class DuckDbRepository : IDataRepository
                 AVG(s.ci_upper) AS HumanHigh,
                 MODE(s.confidence_level) AS Confidence,
                 COUNT(s.fire_id) AS ScoredFires
-            FROM read_parquet('{GetEngineerPath()}') e
-            LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
-            WHERE EXTRACT(YEAR FROM e.date) = ? {countryFilter}
+            FROM read_parquet({GetEngineerPath(regionId)}) e
+            LEFT JOIN read_parquet({GetScientistPath(regionId)}) s ON e.fire_id = s.fire_id
+            WHERE EXTRACT(YEAR FROM e.date) = ? AND e.fire_type = 0
             GROUP BY ROUND(e.latitude * 2) / 2, ROUND(e.longitude * 2) / 2, e.country
             ORDER BY Harmonized DESC
             LIMIT 3000
         ";
 
         cmd.Parameters.Add(new DuckDBParameter { Value = year });
-        if (!string.IsNullOrEmpty(regionId)) cmd.Parameters.Add(new DuckDBParameter { Value = regionId });
 
         var results = new List<CellDto>();
         using var reader = await cmd.ExecuteReaderAsync();
@@ -96,13 +119,15 @@ public class DuckDbRepository : IDataRepository
             SELECT 
                 SUM(e.modis_detections) AS FiresLegacy,
                 SUM(e.n_detections) AS FiresHarmonized,
+                COUNT(*) AS TotalFires,
+                AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END) AS HumanScoreLegacy,
                 AVG(s.human_association_score) AS HumanScoreHarmonized,
                 AVG(s.ci_lower) AS HumanScoreLow,
                 AVG(s.ci_upper) AS HumanScoreHigh,
                 COUNT(s.fire_id) AS ScoredFires,
-                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
-                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
-                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 0 THEN 1 END) AS Sun,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 1 THEN 1 END) AS Mon,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 2 THEN 1 END) AS Tue,
@@ -110,12 +135,11 @@ public class DuckDbRepository : IDataRepository
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 4 THEN 1 END) AS Thu,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 5 THEN 1 END) AS Fri,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 6 THEN 1 END) AS Sat
-            FROM read_parquet('{GetEngineerPath()}') e
-            LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
-            WHERE e.country = ? AND EXTRACT(YEAR FROM e.date) = ?
+            FROM read_parquet({GetEngineerPath(id)}) e
+            LEFT JOIN read_parquet({GetScientistPath(id)}) s ON e.fire_id = s.fire_id
+            WHERE EXTRACT(YEAR FROM e.date) = ? AND e.fire_type = 0
         ";
 
-        cmd.Parameters.Add(new DuckDBParameter { Value = id });
         cmd.Parameters.Add(new DuckDBParameter { Value = filterYear });
 
         using var reader = await cmd.ExecuteReaderAsync();
@@ -123,6 +147,7 @@ public class DuckDbRepository : IDataRepository
         {
             int legacy = reader["FiresLegacy"] != DBNull.Value ? Convert.ToInt32(reader["FiresLegacy"]) : 0;
             int harmonized = reader["FiresHarmonized"] != DBNull.Value ? Convert.ToInt32(reader["FiresHarmonized"]) : 0;
+            int totalFires = Convert.ToInt32(reader["TotalFires"]);
             double undercount = legacy == 0 ? 0 : (double)(harmonized - legacy) / legacy * 100;
 
             var result = new RegionSummaryDto(
@@ -134,7 +159,7 @@ public class DuckDbRepository : IDataRepository
                     Convert.ToDouble(reader["Wed"]), Convert.ToDouble(reader["Thu"]), Convert.ToDouble(reader["Fri"]),
                     Convert.ToDouble(reader["Sat"])
                 },
-                HumanScoreLegacy: null,
+                HumanScoreLegacy: GetNullableDouble(reader, "HumanScoreLegacy"),
                 HumanScoreHarmonized: GetNullableDouble(reader, "HumanScoreHarmonized"),
                 HumanScoreLow: GetNullableDouble(reader, "HumanScoreLow"),
                 HumanScoreHigh: GetNullableDouble(reader, "HumanScoreHigh"),
@@ -144,7 +169,7 @@ public class DuckDbRepository : IDataRepository
                     High: Convert.ToInt32(reader["ConfHigh"])
                 ),
                 ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
-                TotalFires: harmonized
+                TotalFires: totalFires
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
@@ -163,6 +188,8 @@ public class DuckDbRepository : IDataRepository
 
         string spatialFilter = "";
         var parameters = new List<DuckDBParameter>();
+        string engineerPath = GetEngineerPath(region);
+        string scientistPath = GetScientistPath(region);
 
         if (!string.IsNullOrEmpty(region))
         {
@@ -194,8 +221,8 @@ public class DuckDbRepository : IDataRepository
                 EXTRACT(YEAR FROM e.date) AS Year,
                 SUM(e.modis_detections) AS Legacy,
                 SUM(e.n_detections) AS Harmonized
-            FROM read_parquet('{GetEngineerPath()}') e
-            WHERE 1=1 {spatialFilter}
+            FROM read_parquet({engineerPath}) e
+            WHERE e.fire_type = 0 {spatialFilter}
             GROUP BY EXTRACT(YEAR FROM e.date)
             ORDER BY Year ASC
         ";
@@ -222,12 +249,12 @@ public class DuckDbRepository : IDataRepository
                 AVG(s.ci_lower) AS HumanLow,
                 AVG(s.ci_upper) AS HumanHigh,
                 COUNT(s.fire_id) AS ScoredFires,
-                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
-                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
-                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh
-            FROM read_parquet('{GetEngineerPath()}') e
-            LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
-            WHERE 1=1 {spatialFilter}
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh
+            FROM read_parquet({engineerPath}) e
+            LEFT JOIN read_parquet({scientistPath}) s ON e.fire_id = s.fire_id
+            WHERE e.fire_type = 0 {spatialFilter}
         ";
         cmd.Parameters.Clear();
         foreach (var p in parameters) cmd.Parameters.Add(p);
@@ -283,6 +310,7 @@ public class DuckDbRepository : IDataRepository
         using var cmd = connection.CreateCommand();
 
         string spatialFilter = "";
+        string engineerPath = GetEngineerPath(region);
         cmd.Parameters.Add(new DuckDBParameter { Value = date });
 
         if (!string.IsNullOrEmpty(region))
@@ -315,8 +343,8 @@ public class DuckDbRepository : IDataRepository
                 CAST(date AS VARCHAR) AS Date,
                 SUM(modis_detections) AS Legacy,
                 SUM(n_detections) AS Harmonized
-            FROM read_parquet('{GetEngineerPath()}')
-            WHERE CAST(date AS VARCHAR) = ? {spatialFilter}
+            FROM read_parquet({engineerPath})
+            WHERE CAST(date AS VARCHAR) = ? AND fire_type = 0 {spatialFilter}
             GROUP BY date
         ";
 
@@ -341,6 +369,7 @@ public class DuckDbRepository : IDataRepository
         using var cmd = connection.CreateCommand();
 
         string spatialFilter = "";
+        string engineerPath = GetEngineerPath(region);
         cmd.Parameters.Add(new DuckDBParameter { Value = year });
 
         if (!string.IsNullOrEmpty(region))
@@ -373,8 +402,8 @@ public class DuckDbRepository : IDataRepository
                 CAST(date AS VARCHAR) AS Date,
                 SUM(modis_detections) AS Legacy,
                 SUM(n_detections) AS Harmonized
-            FROM read_parquet('{GetEngineerPath()}')
-            WHERE EXTRACT(YEAR FROM date) = ? {spatialFilter}
+            FROM read_parquet({engineerPath})
+            WHERE EXTRACT(YEAR FROM date) = ? AND fire_type = 0 {spatialFilter}
             GROUP BY date
             ORDER BY date ASC
         ";
@@ -407,16 +436,18 @@ public class DuckDbRepository : IDataRepository
             SELECT 
                 SUM(e.modis_detections) AS FiresLegacy,
                 SUM(e.n_detections) AS FiresHarmonized,
+                COUNT(*) AS TotalFires,
+                AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END) AS HumanScoreLegacy,
                 AVG(s.human_association_score) AS HumanScoreHarmonized,
                 AVG(s.ci_lower) AS HumanScoreLow,
                 AVG(s.ci_upper) AS HumanScoreHigh,
                 COUNT(s.fire_id) AS ScoredFires,
-                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
-                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
-                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh
-            FROM read_parquet('{GetEngineerPath()}') e
-            LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
-            WHERE EXTRACT(YEAR FROM e.date) = ?
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh
+            FROM read_parquet({GetEngineerPath(null)}) e
+            LEFT JOIN read_parquet({GetScientistPath(null)}) s ON e.fire_id = s.fire_id
+            WHERE EXTRACT(YEAR FROM e.date) = ? AND e.fire_type = 0
         ";
         cmd.Parameters.Add(new DuckDBParameter { Value = filterYear });
 
@@ -425,14 +456,15 @@ public class DuckDbRepository : IDataRepository
         {
             int legacy = reader["FiresLegacy"] != DBNull.Value ? Convert.ToInt32(reader["FiresLegacy"]) : 0;
             int harmonized = reader["FiresHarmonized"] != DBNull.Value ? Convert.ToInt32(reader["FiresHarmonized"]) : 0;
+            int totalFires = Convert.ToInt32(reader["TotalFires"]);
             double undercount = legacy == 0 ? 0 : (double)(harmonized - legacy) / legacy * 100;
 
             var result = new RegionSummaryDto(
                 UndercountPct: Math.Round(undercount, 1),
                 FiresLegacy: legacy,
                 FiresHarmonized: harmonized,
-                WeekdayCounts: new double[7], // Not needed globally
-                HumanScoreLegacy: null,
+                WeekdayCounts: new double[7], 
+                HumanScoreLegacy: GetNullableDouble(reader, "HumanScoreLegacy"),
                 HumanScoreHarmonized: GetNullableDouble(reader, "HumanScoreHarmonized"),
                 HumanScoreLow: GetNullableDouble(reader, "HumanScoreLow"),
                 HumanScoreHigh: GetNullableDouble(reader, "HumanScoreHigh"),
@@ -442,7 +474,7 @@ public class DuckDbRepository : IDataRepository
                     High: Convert.ToInt32(reader["ConfHigh"])
                 ),
                 ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
-                TotalFires: harmonized
+                TotalFires: totalFires
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
@@ -451,19 +483,56 @@ public class DuckDbRepository : IDataRepository
         return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0);
     }
 
-    public Task<IEnumerable<CountryDto>> GetCountriesAsync()
+    public async Task<IEnumerable<CountryDto>> GetCountriesAsync()
     {
-        var countries = new List<CountryDto>
+        string cacheKey = "countries_list";
+        if (_cache.TryGetValue(cacheKey, out IEnumerable<CountryDto>? cachedCountries)) return cachedCountries!;
+
+        using var connection = _db.CreateConnection();
+        using var cmd = connection.CreateCommand();
+
+        cmd.CommandText = $@"
+            SELECT 
+                e.country AS Id,
+                SUM(e.modis_detections) AS Legacy,
+                SUM(e.n_detections) AS Harmonized,
+                AVG(s.human_association_score) AS HumanScore,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END), 0) AS ConfLow,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END), 0) AS ConfMed,
+                COALESCE(SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END), 0) AS ConfHigh
+            FROM read_parquet({GetEngineerPath(null)}) e
+            LEFT JOIN read_parquet({GetScientistPath(null)}) s ON e.fire_id = s.fire_id
+            WHERE e.fire_type = 0 AND e.country IS NOT NULL
+            GROUP BY e.country
+            ORDER BY e.country
+        ";
+
+        var results = new List<CountryDto>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
         {
-            new("Angola", "Angola"),
-            new("China", "China"),
-            new("Egypt", "Egypt"),
-            new("Greece", "Greece"),
-            new("United Kingdom", "United Kingdom"),
-            new("United States", "United States of America"),
-            new("Yemen", "Yemen")
-        };
-        return Task.FromResult<IEnumerable<CountryDto>>(countries);
+            int legacy = reader["Legacy"] != DBNull.Value ? Convert.ToInt32(reader["Legacy"]) : 0;
+            int harmonized = reader["Harmonized"] != DBNull.Value ? Convert.ToInt32(reader["Harmonized"]) : 0;
+            double undercount = legacy == 0 ? 0 : (double)(harmonized - legacy) / legacy * 100;
+
+            string id = reader["Id"].ToString() ?? "";
+            string name = id == "United States" ? "United States of America" : id;
+
+            results.Add(new CountryDto(
+                Id: id,
+                Name: name,
+                UndercountPct: Math.Round(undercount, 1),
+                HumanScore: GetNullableDouble(reader, "HumanScore"),
+                Confidence: new ConfidenceCountDto(
+                    Low: Convert.ToInt32(reader["ConfLow"]),
+                    Medium: Convert.ToInt32(reader["ConfMed"]),
+                    High: Convert.ToInt32(reader["ConfHigh"])
+                )
+            ));
+        }
+
+        _cache.Set(cacheKey, results, TimeSpan.FromMinutes(30));
+        return results;
     }
 
     public async Task<MetaDto> GetMetaAsync()
@@ -479,7 +548,8 @@ public class DuckDbRepository : IDataRepository
                 CAST(MIN(date) AS VARCHAR) AS MinDate,
                 CAST(MAX(date) AS VARCHAR) AS MaxDate,
                 COUNT(*) AS TotalDetections
-            FROM read_parquet('{GetEngineerPath()}')
+            FROM read_parquet({GetEngineerPath(null)})
+            WHERE fire_type = 0
         ";
 
         using var reader = await cmd.ExecuteReaderAsync();
