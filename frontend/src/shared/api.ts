@@ -24,12 +24,16 @@ const API = (ENV || DEFAULT_API).replace(/\/+$/, '')
 /** data endpoints live under /api on the team backend (ASP.NET [Route("api")]); /health is at the root */
 const DATA_PREFIX = ((import.meta.env.VITE_API_PREFIX as string | undefined) ?? '/api').replace(/\/+$/, '')
 
-/** generous: the backend reads its parquet files from HuggingFace, so cold queries can be slow */
-const TIMEOUT_MS = 30000
+/**
+ * Very generous timeouts: the backend container can take 1–2 minutes to wake up, and its first
+ * queries read the parquet files from HuggingFace. A request is only abandoned after this long.
+ */
+const HEALTH_TIMEOUT_MS = 150_000
+const DATA_TIMEOUT_MS = 180_000
 
-async function get<T>(path: string, root = false): Promise<T> {
+async function get<T>(path: string, root = false, timeout = DATA_TIMEOUT_MS): Promise<T> {
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const t = setTimeout(() => ctrl.abort(), timeout)
   try {
     const res = await fetch(`${API}${root ? '' : DATA_PREFIX}${path}`, { signal: ctrl.signal })
     if (!res.ok) throw Object.assign(new Error(`${res.status} ${path}`), { status: res.status })
@@ -39,42 +43,58 @@ async function get<T>(path: string, root = false): Promise<T> {
   }
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** resolves once /health answers; data calls wait for it instead of failing while the server wakes */
+let markReady: () => void = () => {}
+const ready = new Promise<void>((r) => { markReady = r })
+
 /**
- * Call the backend and normalise its response to our types. Throws when the backend is down,
- * the call fails, or the response isn't usable (normalize returns null): nothing is invented.
+ * Call the backend and normalise its response to our types. Waits while the server wakes up,
+ * retries a failed call twice (cold queries can time out or 502), then throws: nothing is invented.
  */
 async function live<T>(endpoint: string, path: string, normalize: (x: unknown) => T | null): Promise<T> {
-  const { mark, backend } = useDataStatus.getState()
-  if (backend === 'down') { mark(endpoint, 'error'); throw new Error(`backend unavailable: ${path}`) }
-  try {
-    const data = normalize(await get<unknown>(path))
-    if (data === null) throw new Error(`unexpected shape from ${path}`)
-    mark(endpoint, 'real')
-    return data
-  } catch (e) {
-    console.warn('[thermora] backend call failed:', (e as Error).message)
-    mark(endpoint, 'error')
-    throw e
+  await ready
+  const { mark } = useDataStatus.getState()
+  let last: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const data = normalize(await get<unknown>(path))
+      if (data === null) throw Object.assign(new Error(`unexpected shape from ${path}`), { final: true })
+      mark(endpoint, 'real')
+      return data
+    } catch (e) {
+      last = e
+      const status = (e as { status?: number }).status
+      // a wrong shape or a 4xx won't fix itself; network errors, timeouts and 5xx might
+      if ((e as { final?: boolean }).final || (status && status >= 400 && status < 500)) break
+      await sleep(4000 * (attempt + 1))
+    }
   }
+  console.warn('[thermora] backend call failed:', (last as Error).message)
+  mark(endpoint, 'error')
+  throw last
 }
 
-// ---- health check (once, at startup) --------------------------------------
+// ---- health check: keep trying until the backend answers ---------------------
 export async function checkHealth() {
   const { setBackend } = useDataStatus.getState()
   setBackend('checking')
-  // the container may be waking up: try a few times before calling it unreachable
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  const started = Date.now()
+  for (let attempt = 1; ; attempt++) {
     try {
-      const h = await get<{ status?: string }>('/health', true)
+      const h = await get<{ status?: string }>('/health', true, HEALTH_TIMEOUT_MS)
       if (String(h?.status).toLowerCase() === 'healthy') {
         setBackend('up')
+        markReady()
         void syncRegions(); void syncMeta()
         return
       }
-    } catch { /* retry */ }
-    if (attempt < 4) await new Promise((r) => setTimeout(r, 3000 * attempt))
+    } catch { /* still waking: retry */ }
+    // first ~5 minutes: "waking up"; after that "unreachable", but never stop trying
+    setBackend(Date.now() - started < 5 * 60_000 ? 'waking' : 'down', started)
+    await sleep(Math.min(30_000, 3000 * attempt))
   }
-  setBackend('down')
 }
 
 /**
@@ -85,7 +105,11 @@ export async function checkHealth() {
 async function syncRegions() {
   try {
     // the team uses countries (GET /api/countries → [{ id, name }]); /regions kept as a fallback
-    let list = await countriesToRegions(await get<unknown>('/countries').catch(() => null))
+    let list: Region[] | null = null
+    for (let attempt = 0; attempt < 3 && !list?.length; attempt++) {
+      if (attempt) await sleep(4000 * attempt) // cold first query: try again
+      list = await countriesToRegions(await get<unknown>('/countries').catch(() => null))
+    }
     if (!list?.length) list = normRegions(await get<unknown>('/regions').catch(() => null))
     if (!list || !list.length) { useDataStatus.getState().mark('regions', 'error'); return }
     REGIONS.splice(0, REGIONS.length, ...list)

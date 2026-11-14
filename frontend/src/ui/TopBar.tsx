@@ -75,25 +75,36 @@ export function UtcClock() {
   )
 }
 
-/** Data badge: live, connecting, or unreachable. There is no sample data to fall back to. */
+/** m:ss since the server started waking up, ticking */
+function useElapsed(since: number | null) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (since == null) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [since])
+  if (since == null) return ''
+  const sec = Math.max(0, Math.floor((now - since) / 1000))
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+}
+
+/**
+ * Data badge. Never sample data: live, waking up (the server can take minutes to start),
+ * or not answering (we keep retrying). A single failed request doesn't flip the whole badge.
+ */
 export function MockBadge() {
   const backend = useDataStatus((s) => s.backend)
+  const since = useDataStatus((s) => s.wakingSince)
   const sources = useDataStatus((s) => s.sources)
-  if (backend === 'down' || anyFailed(sources)) {
-    return (
-      <span title="The backend did not answer. Nothing is shown in place of its data." className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn">
-        Backend unreachable
-      </span>
-    )
-  }
-  if (backend !== 'up' || !Object.values(sources).includes('real')) {
-    return <span className="rounded border border-line px-2 py-0.5 text-[12px] whitespace-nowrap text-dim">Connecting to data…</span>
-  }
-  return (
-    <span title="All numbers on screen come from the team's backend" className="rounded border border-ok/40 bg-ok/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-ok">
-      Live data
-    </span>
+  const elapsed = useElapsed(backend === 'waking' || backend === 'down' ? since : null)
+  const chip = (cls: string, text: string, title?: string) => (
+    <span title={title} className={`rounded border px-2 py-0.5 text-[12px] whitespace-nowrap ${cls}`}>{text}</span>
   )
+  if (backend === 'down') return chip('border-warn/40 bg-warn/10 text-warn', `Backend not answering, retrying ${elapsed}`, 'The data server has not answered yet. We keep trying; nothing is shown in place of its data.')
+  if (backend === 'waking') return chip('border-line text-dim', `Waking up the data server ${elapsed}`, 'The data server sleeps when idle and can take a minute or two to start.')
+  if (backend !== 'up' || !Object.values(sources).includes('real')) return chip('border-line text-dim', 'Connecting to data…')
+  if (anyFailed(sources)) return chip('border-ok/40 bg-ok/10 text-ok', 'Live data, some parts unavailable', 'Everything shown is real; a few requests failed and are left empty.')
+  return chip('border-ok/40 bg-ok/10 text-ok', 'Live data', "All numbers on screen come from the team's backend")
 }
 
 export function TourButton({ className = '' }: { className?: string }) {

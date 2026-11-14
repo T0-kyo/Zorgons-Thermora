@@ -34,7 +34,7 @@ function MiniBar({ v, max, human }: { v: number; max: number; human: boolean }) 
 }
 
 export default function RegionList() {
-  const regionsState = useDataStatus((s) => (s.backend === 'down' ? 'error' : s.sources.regions))
+  const regionsState = useDataStatus((s) => (s.backend === 'up' ? s.sources.regions : s.backend))
   useDataStatus((s) => s.regionsVersion) // re-render when the backend's list arrives
   const regionId = useApp((s) => s.regionId)
   const place = useApp((s) => s.place)
@@ -69,7 +69,7 @@ export default function RegionList() {
       <div className="min-h-0 overflow-y-auto">
         {REGIONS.length === 0 && (
           <p className="px-2 py-1.5 text-[13px] text-dim">
-            {regionsState === 'error' ? 'Countries are unavailable: the backend did not answer.' : 'Loading countries…'}
+            {regionsState === 'error' ? 'Countries are unavailable: the backend did not answer.' : regionsState === 'waking' || regionsState === 'down' ? 'Countries load when the data server is awake.' : 'Loading countries…'}
           </p>
         )}
         {REGIONS.map((r) => {
