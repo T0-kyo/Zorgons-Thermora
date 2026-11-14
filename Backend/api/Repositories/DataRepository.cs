@@ -2,6 +2,8 @@ using api.DTOs;
 using api.Services;
 using DuckDB.NET.Data;
 using Microsoft.Extensions.Caching.Memory;
+using System.Data.Common;
+
 
 namespace api.Repositories;
 
@@ -10,14 +12,21 @@ public class DuckDbRepository : IDataRepository
     private readonly IDuckDbService _db;
     private readonly IMemoryCache _cache;
 
+
     public DuckDbRepository(IDuckDbService db, IMemoryCache cache)
     {
         _db = db;
         _cache = cache;
     }
 
-    private string GetEngineerPath() => $"{_db.GetEngineerUrl()}/harmonized_data.parquet";
-    private string GetScientistPath() => $"{_db.GetEngineerUrl()}/fire_level_assessment.parquet";
+    private string GetEngineerPath() => $"{_db.GetBaseUrl()}/harmonized_data.parquet";
+    private string GetScientistPath() => $"{_db.GetBaseUrl()}/fire_level_assessment.parquet";
+
+    private static double? GetNullableDouble(DbDataReader reader, string columnName)
+    {
+        int ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetDouble(ordinal);
+    }
 
     public async Task<IEnumerable<CellDto>> GetCellsAsync(int year, string? regionId)
     {
@@ -36,7 +45,11 @@ public class DuckDbRepository : IDataRepository
                 e.country AS RegionId,
                 SUM(e.modis_detections) AS Legacy,
                 SUM(e.n_detections) AS Harmonized,
-                COALESCE(AVG(s.human_association_score), 0.0) AS Human
+                AVG(s.human_association_score) AS Human,
+                AVG(s.ci_lower) AS HumanLow,
+                AVG(s.ci_upper) AS HumanHigh,
+                MODE(s.confidence_level) AS Confidence,
+                COUNT(s.fire_id) AS ScoredFires
             FROM read_parquet('{GetEngineerPath()}') e
             LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
             WHERE EXTRACT(YEAR FROM e.date) = ? {countryFilter}
@@ -58,7 +71,11 @@ public class DuckDbRepository : IDataRepository
                 RegionId: reader["RegionId"].ToString() ?? "",
                 Legacy: Convert.ToInt32(reader["Legacy"]),
                 Harmonized: Convert.ToInt32(reader["Harmonized"]),
-                Human: Math.Round(Convert.ToDouble(reader["Human"]), 2)
+                Human: GetNullableDouble(reader, "Human"),
+                HumanLow: GetNullableDouble(reader, "HumanLow"),
+                HumanHigh: GetNullableDouble(reader, "HumanHigh"),
+                Confidence: reader["Confidence"] != DBNull.Value ? reader["Confidence"].ToString() : null,
+                ScoredFires: Convert.ToInt32(reader["ScoredFires"])
             ));
         }
 
@@ -79,8 +96,13 @@ public class DuckDbRepository : IDataRepository
             SELECT 
                 SUM(e.modis_detections) AS FiresLegacy,
                 SUM(e.n_detections) AS FiresHarmonized,
-                COALESCE(AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END), 0.0) AS HumanScoreLegacy,
-                COALESCE(AVG(s.human_association_score), 0.0) AS HumanScoreHarmonized,
+                AVG(s.human_association_score) AS HumanScoreHarmonized,
+                AVG(s.ci_lower) AS HumanScoreLow,
+                AVG(s.ci_upper) AS HumanScoreHigh,
+                COUNT(s.fire_id) AS ScoredFires,
+                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
+                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
+                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 0 THEN 1 END) AS Sun,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 1 THEN 1 END) AS Mon,
                 COUNT(CASE WHEN EXTRACT(dow FROM e.date) = 2 THEN 1 END) AS Tue,
@@ -112,14 +134,23 @@ public class DuckDbRepository : IDataRepository
                     Convert.ToDouble(reader["Wed"]), Convert.ToDouble(reader["Thu"]), Convert.ToDouble(reader["Fri"]),
                     Convert.ToDouble(reader["Sat"])
                 },
-                HumanScoreLegacy: Math.Round(Convert.ToDouble(reader["HumanScoreLegacy"]), 2),
-                HumanScoreHarmonized: Math.Round(Convert.ToDouble(reader["HumanScoreHarmonized"]), 2)
+                HumanScoreLegacy: null,
+                HumanScoreHarmonized: GetNullableDouble(reader, "HumanScoreHarmonized"),
+                HumanScoreLow: GetNullableDouble(reader, "HumanScoreLow"),
+                HumanScoreHigh: GetNullableDouble(reader, "HumanScoreHigh"),
+                Confidence: new ConfidenceCountDto(
+                    Low: Convert.ToInt32(reader["ConfLow"]),
+                    Medium: Convert.ToInt32(reader["ConfMed"]),
+                    High: Convert.ToInt32(reader["ConfHigh"])
+                ),
+                ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
+                TotalFires: harmonized
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
             return result;
         }
-        return new RegionSummaryDto(0, 0, 0, new double[7], 0, 0);
+        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0);
     }
 
     public async Task<ProgressDto> GetProgressAsync(string? region, double? lat, double? lng, double? radiusKm)
@@ -155,7 +186,7 @@ public class DuckDbRepository : IDataRepository
         }
         else
         {
-            return new ProgressDto(new List<ProgressSeriesDto>(), 0, 0, 0, "stable", new HumanLikelihoodDto(0, 0), false);
+            return new ProgressDto(new List<ProgressSeriesDto>(), 0, 0, 0, "stable", new HumanLikelihoodDto(null, null, null, null, new ConfidenceCountDto(0,0,0), 0), false);
         }
 
         cmd.CommandText = $@"
@@ -183,12 +214,17 @@ public class DuckDbRepository : IDataRepository
             }
         }
 
-        if (series.Count == 0) return new ProgressDto(new List<ProgressSeriesDto>(), 0, 0, 0, "stable", new HumanLikelihoodDto(0, 0), false);
+        if (series.Count == 0) return new ProgressDto(new List<ProgressSeriesDto>(), 0, 0, 0, "stable", new HumanLikelihoodDto(null, null, null, null, new ConfidenceCountDto(0,0,0), 0), false);
 
         cmd.CommandText = $@"
             SELECT 
-                COALESCE(AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END), 0.0) AS HumanLegacy,
-                COALESCE(AVG(s.human_association_score), 0.0) AS HumanHarmonized
+                AVG(s.human_association_score) AS HumanHarmonized,
+                AVG(s.ci_lower) AS HumanLow,
+                AVG(s.ci_upper) AS HumanHigh,
+                COUNT(s.fire_id) AS ScoredFires,
+                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
+                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
+                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh
             FROM read_parquet('{GetEngineerPath()}') e
             LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
             WHERE 1=1 {spatialFilter}
@@ -196,14 +232,23 @@ public class DuckDbRepository : IDataRepository
         cmd.Parameters.Clear();
         foreach (var p in parameters) cmd.Parameters.Add(p);
 
-        double humanLegacy = 0.0;
-        double humanHarmonized = 0.0;
+        HumanLikelihoodDto humanLikelihood = new HumanLikelihoodDto(null, null, null, null, new ConfidenceCountDto(0,0,0), 0);
         using (var reader = await cmd.ExecuteReaderAsync())
         {
             if (await reader.ReadAsync())
             {
-                humanLegacy = Math.Round(Convert.ToDouble(reader["HumanLegacy"]), 2);
-                humanHarmonized = Math.Round(Convert.ToDouble(reader["HumanHarmonized"]), 2);
+                humanLikelihood = new HumanLikelihoodDto(
+                    Legacy: null,
+                    Harmonized: GetNullableDouble(reader, "HumanHarmonized"),
+                    Low: GetNullableDouble(reader, "HumanLow"),
+                    High: GetNullableDouble(reader, "HumanHigh"),
+                    Confidence: new ConfidenceCountDto(
+                        Low: Convert.ToInt32(reader["ConfLow"]),
+                        Medium: Convert.ToInt32(reader["ConfMed"]),
+                        High: Convert.ToInt32(reader["ConfHigh"])
+                    ),
+                    ScoredFires: Convert.ToInt32(reader["ScoredFires"])
+                );
             }
         }
 
@@ -224,7 +269,7 @@ public class DuckDbRepository : IDataRepository
             Recent: Math.Round(recentAvg, 1),
             ChangePct: Math.Round(changePct, 1),
             Direction: direction,
-            HumanLikelihood: new HumanLikelihoodDto(humanLegacy, humanHarmonized),
+            HumanLikelihood: humanLikelihood,
             Covered: true
         );
 
@@ -362,8 +407,13 @@ public class DuckDbRepository : IDataRepository
             SELECT 
                 SUM(e.modis_detections) AS FiresLegacy,
                 SUM(e.n_detections) AS FiresHarmonized,
-                COALESCE(AVG(CASE WHEN e.modis_detections > 0 THEN s.human_association_score END), 0.0) AS HumanScoreLegacy,
-                COALESCE(AVG(s.human_association_score), 0.0) AS HumanScoreHarmonized
+                AVG(s.human_association_score) AS HumanScoreHarmonized,
+                AVG(s.ci_lower) AS HumanScoreLow,
+                AVG(s.ci_upper) AS HumanScoreHigh,
+                COUNT(s.fire_id) AS ScoredFires,
+                SUM(CASE WHEN s.confidence_level = 'Low' THEN 1 ELSE 0 END) AS ConfLow,
+                SUM(CASE WHEN s.confidence_level = 'Medium' THEN 1 ELSE 0 END) AS ConfMed,
+                SUM(CASE WHEN s.confidence_level = 'High' THEN 1 ELSE 0 END) AS ConfHigh
             FROM read_parquet('{GetEngineerPath()}') e
             LEFT JOIN read_parquet('{GetScientistPath()}') s ON e.fire_id = s.fire_id
             WHERE EXTRACT(YEAR FROM e.date) = ?
@@ -381,15 +431,24 @@ public class DuckDbRepository : IDataRepository
                 UndercountPct: Math.Round(undercount, 1),
                 FiresLegacy: legacy,
                 FiresHarmonized: harmonized,
-                WeekdayCounts: new double[7],
-                HumanScoreLegacy: Math.Round(Convert.ToDouble(reader["HumanScoreLegacy"]), 2),
-                HumanScoreHarmonized: Math.Round(Convert.ToDouble(reader["HumanScoreHarmonized"]), 2)
+                WeekdayCounts: new double[7], // Not needed globally
+                HumanScoreLegacy: null,
+                HumanScoreHarmonized: GetNullableDouble(reader, "HumanScoreHarmonized"),
+                HumanScoreLow: GetNullableDouble(reader, "HumanScoreLow"),
+                HumanScoreHigh: GetNullableDouble(reader, "HumanScoreHigh"),
+                Confidence: new ConfidenceCountDto(
+                    Low: Convert.ToInt32(reader["ConfLow"]),
+                    Medium: Convert.ToInt32(reader["ConfMed"]),
+                    High: Convert.ToInt32(reader["ConfHigh"])
+                ),
+                ScoredFires: Convert.ToInt32(reader["ScoredFires"]),
+                TotalFires: harmonized
             );
 
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
             return result;
         }
-        return new RegionSummaryDto(0, 0, 0, new double[7], 0, 0);
+        return new RegionSummaryDto(0, 0, 0, new double[7], null, null, null, null, new ConfidenceCountDto(0,0,0), 0, 0);
     }
 
     public Task<IEnumerable<CountryDto>> GetCountriesAsync()

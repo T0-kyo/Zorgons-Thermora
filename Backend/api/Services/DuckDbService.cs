@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
-using DuckDB.NET.Data;
 using System.Data.Common;
+using DuckDB.NET.Data;
 using api.Config;
 
 
@@ -8,14 +8,14 @@ namespace api.Services;
 
 public class DuckDbService : IDuckDbService
 {
-    private readonly string _engineerUrl;
-    private readonly string _scientistUrl;
-
+    private readonly string _baseUrl;
+    
+    private static bool _isHttpfsInstalled = false;
+    private static readonly object _lock = new();
 
     public DuckDbService(IOptions<DataSettings> options)
     {
-        _engineerUrl = options.Value.EngineerUrl;
-        _scientistUrl = options.Value.ScientistUrl;
+        _baseUrl = options.Value.BaseUrl;
     }
 
     public DbConnection CreateConnection()
@@ -24,12 +24,26 @@ public class DuckDbService : IDuckDbService
         connection.Open();
 
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "INSTALL httpfs; LOAD httpfs;";
+        
+        lock (_lock)
+        {
+            if (!_isHttpfsInstalled)
+            {
+                cmd.CommandText = "INSTALL httpfs;";
+                cmd.ExecuteNonQuery();
+                _isHttpfsInstalled = true;
+            }
+        }
+
+        cmd.CommandText = @"
+            LOAD httpfs;
+            SET memory_limit = '400MB';
+            SET http_timeout = 120;
+        ";
         cmd.ExecuteNonQuery();
 
         return connection;
     }
 
-    public string GetEngineerUrl() => _engineerUrl;
-    public string GetScientistUrl() => _scientistUrl;
+    public string GetBaseUrl() => _baseUrl;
 }
