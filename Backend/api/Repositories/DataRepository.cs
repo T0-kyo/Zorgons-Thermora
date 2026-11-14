@@ -16,8 +16,8 @@ public class DuckDbRepository : IDataRepository
         _cache = cache;
     }
 
-    private string GetEngineerPath() => $"{_db.GetEngineerUrl()}/harmonized_data.parquet";
-    private string GetScientistPath() => $"{_db.GetEngineerUrl()}/fire_level_assessment.parquet";
+    private string GetEngineerPath() => $"{_db.GetBaseUrl()}/harmonized_data.parquet";
+    private string GetScientistPath() => $"{_db.GetBaseUrl()}/fire_level_assessment.parquet";
 
     public async Task<IEnumerable<CellDto>> GetCellsAsync(int year, string? regionId)
     {

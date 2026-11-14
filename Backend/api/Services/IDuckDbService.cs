@@ -6,6 +6,5 @@ namespace api.Services;
 public interface IDuckDbService
 {
     DbConnection CreateConnection();
-    string GetEngineerUrl();
-    string GetScientistUrl();
+    string GetBaseUrl();
 }
