@@ -58,7 +58,7 @@ function ChangeBar({ baseline, recent, direction, first, last }: { baseline: num
 export function OutsideNotice() {
   return (
     <div className="mt-3 rounded border border-warn/40 bg-warn/10 px-3 py-2.5 text-[14px] text-warn">
-      Outside the study regions. No data here yet.
+      Outside the countries with data. No data here yet.
       <div className="mt-1 text-[12.5px] text-warn/80">Try a spot inside one of the regions on the left, or search for a place.</div>
     </div>
   )

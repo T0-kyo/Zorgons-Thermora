@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
-import { regionById } from '../shared/regions'
+import { regionByCode, regionById } from '../shared/regions'
 import { fetchSummary, fetchYearTotals } from './data'
 import { humanLabel, weekendDip } from '../charts/stats'
 
@@ -20,8 +20,10 @@ interface Step {
 
 const app = () => useApp.getState()
 type TourMode = 'legacy' | 'harmonized' | 'human'
-const focus = (id: string | null, mode: TourMode) => () => {
-  app().selectRegion(id)
+/** countries are resolved by ISO code at run time (ids come from the backend's country list) */
+const cid = (code: string) => regionByCode(code)?.id ?? null
+const focus = (code: string | null, mode: TourMode) => () => {
+  app().selectRegion(code ? cid(code) : null)
   app().setMode(mode)
 }
 const pct = (v: number) => `${v.toFixed(0)}%`
@@ -44,17 +46,17 @@ const STEPS: Step[] = [
   },
   {
     ms: 6500,
-    go: focus('india_china', 'harmonized'),
+    go: focus('IND', 'harmonized'),
     text: async ({ year }) => {
-      const s = await fetchSummary('india_china', year)
-      return `India & China crop belts: small fires from crop residue. The legacy record undercounts them by ${pct(s.undercountPct)}.`
+      const s = await fetchSummary(cid('IND') ?? '', year)
+      return `India: small fires from crop residue. The legacy record undercounts them by ${pct(s.undercountPct)}.`
     },
   },
   {
     ms: 7500,
-    go: focus('india_china', 'human'),
+    go: focus('IND', 'human'),
     text: async ({ year }) => {
-      const [s, h] = await Promise.all([fetchSummary('india_china', year), likelihood(year, 'india_china')])
+      const [s, h] = await Promise.all([fetchSummary(cid('IND') ?? '', year), likelihood(year, cid('IND') ?? '')])
       const dip = weekendDip(s.weekdayCounts)
       if (h >= 0.66 && dip < -3)
         return `Crop-residue burning: a strong human rhythm. Fires drop ${Math.abs(dip).toFixed(0)}% at weekends. Human likelihood ${h.toFixed(2)}.`
@@ -63,22 +65,22 @@ const STEPS: Step[] = [
   },
   {
     ms: 7500,
-    go: focus('boreal_na', 'human'),
+    go: focus('CAN', 'human'),
     text: async ({ year }) => {
-      const [s, h] = await Promise.all([fetchSummary('boreal_na', year), likelihood(year, 'boreal_na')])
+      const [s, h] = await Promise.all([fetchSummary(cid('CAN') ?? '', year), likelihood(year, cid('CAN') ?? '')])
       const dip = weekendDip(s.weekdayCounts)
       const rhythm = Math.abs(dip) < 3 ? 'and barely any weekly rhythm' : `with a ${Math.abs(dip).toFixed(0)}% weekend change`
-      if (h < 0.4) return `Boreal North America. Lightning fires: mostly natural. Human likelihood ${h.toFixed(2)}, ${rhythm}.`
-      return `Boreal North America: ${humanLabel(h).toLowerCase()}, human likelihood ${h.toFixed(2)}, ${rhythm}.`
+      if (h < 0.4) return `Canada. Boreal lightning fires: mostly natural. Human likelihood ${h.toFixed(2)}, ${rhythm}.`
+      return `Canada: ${humanLabel(h).toLowerCase()}, human likelihood ${h.toFixed(2)}, ${rhythm}.`
     },
   },
   {
     ms: 7500,
-    go: focus('africa', 'harmonized'),
+    go: focus('AGO', 'harmonized'),
     text: async ({ year }) => {
-      const s = await fetchSummary('africa', year)
+      const s = await fetchSummary(cid('AGO') ?? '', year)
       const trend = s.trendSurvives ? 'Its long-term trend holds after correction.' : 'Its long-term trend changes once corrected.'
-      return `Sub-Saharan Africa burns more than anywhere else, and the legacy record undercounts it by ${pct(s.undercountPct)}. ${trend}`
+      return `Angola is among the most fire-active countries on Earth, and the legacy record undercounts it by ${pct(s.undercountPct)}. ${trend}`
     },
   },
   {

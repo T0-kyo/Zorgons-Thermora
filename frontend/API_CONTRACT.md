@@ -22,6 +22,8 @@ The backend's controller (`Backend/api/Controllers/DataController.cs`) has every
 | cells filter `?regionId=` | we send both `region` and `regionId` |
 | `GET /api/regions` (when it returns a list) | **replaces our built-in region list**, so ids always match your data. Known ids keep our camera views and outlines; new ids use your `center` |
 
+**Update Sat 10:30: COUNTRIES, not regions (team decision).** The app is now organised by country. The list comes from `GET /api/countries` (`[{ id, name }]`); each id is matched to the world map by name (or `iso3`/`code` if you add it), giving its outline and camera view automatically. `region=<id>` in every request is that country id, URL-encoded. Without the backend, a default list of 15 fire-active countries is used.
+
 **Update Sat 10:15 (checked the `backend` branch):** cells, daily, countries and meta are implemented. The frontend now:
 - fetches `/api/cells?year=` for the whole year once and maps **country names → our regions** (Natural Earth names), so `regionId` can stay a country name;
 - **refuses cells whose `human` is all 0** (placeholder), keeping sample data until real likelihoods arrive;

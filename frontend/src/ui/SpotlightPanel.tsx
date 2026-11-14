@@ -32,7 +32,7 @@ export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlac
     <section className="border-t border-line pt-3">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-baseline justify-between gap-3 text-left">
         <span>
-          <span className="block text-[15px]">{isPlace ? `About the wider region` : 'Region findings'}</span>
+          <span className="block text-[15px]">{isPlace ? `About the whole country` : 'Country findings'}</span>
           <span className="label">
             {region.name}, {year}
           </span>

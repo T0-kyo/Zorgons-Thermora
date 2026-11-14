@@ -10,7 +10,9 @@
  * Components must call these functions, never fetch() directly.
  */
 import type { DailyPoint, DayDetail, FireCell, ProgressSummary, Region, RegionSummary, Target } from './types'
-import { REGIONS } from './regions'
+import { geoBounds, geoCentroid } from 'd3-geo'
+import type { Feature } from 'geojson'
+import { BLURBS, REGIONS } from './regions'
 import { mockCells, mockDaily, mockDay, mockProgress, mockSummary } from './mock'
 import { useDataStatus } from './dataStatus'
 export { searchPlaces, placeFromPoint, regionAt } from './places'
@@ -83,7 +85,9 @@ export async function checkHealth() {
  */
 async function syncRegions() {
   try {
-    const list = normRegions(await get<unknown>('/regions'))
+    // the team uses countries (GET /api/countries → [{ id, name }]); /regions kept as a fallback
+    let list = await countriesToRegions(await get<unknown>('/countries').catch(() => null))
+    if (!list?.length) list = normRegions(await get<unknown>('/regions').catch(() => null))
     if (!list || !list.length) return
     REGIONS.splice(0, REGIONS.length, ...list)
     useDataStatus.setState((st) => ({ regionsVersion: st.regionsVersion + 1 }))
@@ -191,13 +195,15 @@ const yearCells = new Map<number, Promise<FireCell[]>>()
 // via Natural Earth names (NAME / NAME_LONG / ADMIN / FORMAL_EN / ISO codes).
 const norm = (v: unknown) => String(v ?? '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '')
 let countryIdx: Promise<Map<string, { code: string; name: string }>> | null = null
+const featureByCode = new Map<string, Feature>()
 function countryIndex() {
   return (countryIdx ??= fetch(`${import.meta.env.BASE_URL}data/countries.json`)
     .then((r) => r.json())
-    .then((fc: { features: { properties: Record<string, unknown> }[] }) => {
+    .then((fc: { features: (Feature & { properties: Record<string, unknown> })[] }) => {
       const m = new Map<string, { code: string; name: string }>()
       for (const f of fc.features) {
         const p = f.properties, code = String(p.ADM0_A3), name = String(p.NAME)
+        featureByCode.set(code, f)
         for (const k of ['NAME', 'NAME_LONG', 'ADMIN', 'FORMAL_EN', 'NAME_SORT', 'NAME_ALT', 'SOVEREIGNT', 'ADM0_A3', 'ISO_A2']) {
           const n = norm(p[k]); if (n && !m.has(n)) m.set(n, { code, name })
         }
@@ -209,18 +215,39 @@ function countryIndex() {
 let idxCache: Map<string, { code: string; name: string }> = new Map()
 void countryIndex().then((m) => { idxCache = m })
 
-/** our region id for a backend label: a region id as-is, else the region containing that country */
+/** our country id for a backend label: an id as-is, else the entry with the same ISO code */
 function toRegionId(label: string): string {
   if (REGIONS.some((r) => r.id === label)) return label
   const hit = idxCache.get(norm(label))
   return (hit && REGIONS.find((r) => r.countries.includes(hit.code))?.id) || label
 }
-/** country display names in a region (for backend calls that filter by country) */
-function countryNamesOf(regionId: string): string[] {
-  const codes = REGIONS.find((r) => r.id === regionId)?.countries ?? []
-  const out = new Set<string>()
-  for (const v of idxCache.values()) if (codes.includes(v.code)) out.add(v.name)
-  return [...out]
+
+/** GET /api/countries → our Region list: outline + camera view computed from the world map */
+async function countriesToRegions(x: unknown): Promise<Region[] | null> {
+  if (!Array.isArray(x) || !x.length) return null
+  await countryIndex()
+  const out: Region[] = []
+  for (const row of x as Obj[]) {
+    const id = String(row.id ?? row.name ?? '')
+    const name = String(row.name ?? id)
+    const hit = idxCache.get(norm(row.iso3 ?? row.code ?? '')) ?? idxCache.get(norm(id)) ?? idxCache.get(norm(name))
+    const f = hit && featureByCode.get(hit.code)
+    if (!id || !hit || !f) {
+      console.warn('[thermora] country not on the map, skipped:', id)
+      continue
+    }
+    const [lng, lat] = geoCentroid(f)
+    const [[x0, y0], [x1, y1]] = geoBounds(f)
+    const lngSpan = (x1 >= x0 ? x1 - x0 : x1 + 360 - x0) * Math.cos((lat * Math.PI) / 180)
+    const span = Math.min(Math.max(y1 - y0, lngSpan), 60) // Russia/USA/islands: keep sane
+    out.push({
+      id, name,
+      center: { lat: +lat.toFixed(1), lng: +lng.toFixed(1), altitude: +Math.min(1.9, Math.max(0.5, 0.35 + span / 38)).toFixed(2) },
+      countries: [hit.code],
+      blurb: BLURBS[hit.code] ?? '',
+    })
+  }
+  return out.length ? out : null
 }
 
 /**
@@ -244,7 +271,7 @@ function usableCells(cells: FireCell[] | null): FireCell[] | null {
 }
 
 export async function getSummary(regionId: string, year: number): Promise<RegionSummary> {
-  return hybrid('summary', `/regions/${regionId}/summary?year=${year}`, (x) => normSummary(x, regionId, year), () => mockSummary(regionId, year))
+  return hybrid('summary', `/regions/${encodeURIComponent(regionId)}/summary?year=${year}`, (x) => normSummary(x, regionId, year), () => mockSummary(regionId, year))
 }
 
 /** Query string for a region or a place target. */
@@ -265,23 +292,15 @@ export async function getDaily(t: Target, year: number): Promise<DailyPoint[]> {
     useDataStatus.getState().mark('daily', 'mock')
     return mockDaily(t, year)
   }
-  // Region: the backend filters by country name, so ask per country and add up the days.
-  await countryIndex()
-  const names = countryNamesOf(t.regionId)
-  const one = (q: string) => hybrid('daily', `/daily?year=${year}&region=${encodeURIComponent(q)}`, (x) => {
+  // Country: one call; the backend filters by its own country label (= our id).
+  const list = await hybrid('daily', `/daily?year=${year}&region=${encodeURIComponent(t.regionId)}`, (x) => {
     const d = normDaily(x); return d && d.length ? d : null
   }, async () => [] as DailyPoint[])
-  const lists = await Promise.all([t.regionId, ...names].map(one))
-  const byDate = new Map<string, DailyPoint>()
-  for (const list of lists) for (const p of list) {
-    const e = byDate.get(p.date) ?? { date: p.date, legacy: 0, harmonized: 0 }
-    e.legacy += p.legacy; e.harmonized += p.harmonized
-    byDate.set(p.date, e)
-  }
-  if (!byDate.size) {
+  if (!list.length) {
     useDataStatus.getState().mark('daily', 'mock')
     return mockDaily(t, year)
   }
+  const byDate = new Map(list.map((p) => [p.date, p]))
   useDataStatus.getState().mark('daily', 'real')
   return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
