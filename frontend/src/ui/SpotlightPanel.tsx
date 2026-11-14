@@ -11,6 +11,7 @@ import { regionById } from '../shared/regions'
 import HumanGauge from '../charts/HumanGauge'
 import WeeklyChart from '../charts/WeeklyChart'
 import TrendChart from '../charts/TrendChart'
+import StatTrendChart from '../charts/StatTrendChart'
 import CountUp from './CountUp'
 import { fmtPct, useSummary } from './data'
 import { HeroCount, RecordBar, Section, HumanHero, HumanEvidence } from './RecordBar'
@@ -85,7 +86,12 @@ export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlac
               <WeeklyChart counts={s.weekdayCounts} />
             </div>
           </Section>
-          {s.trend.length > 1 && (
+          {s.statTrend && (
+            <Section q="Q3" title="Is fire activity changing?">
+              <StatTrendChart t={s.statTrend} />
+            </Section>
+          )}
+          {!s.statTrend && s.trend.length > 1 && (
             <Section q="Q3" title="Does the trend hold after correction?">
               <TrendChart trend={s.trend} year={year} mode={mode} survives={s.trendSurvives} verdict={s.verdict} />
             </Section>

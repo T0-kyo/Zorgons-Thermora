@@ -10,7 +10,7 @@
  * Components must call these functions, never fetch() directly.
  */
 import { YEARS } from './types'
-import type { ConfidenceLevel, HumanStats, DailyPoint, DayDetail, FireCell, ProgressSummary, Region, RegionSummary, Target } from './types'
+import type { ConfidenceLevel, HumanStats, StatTrend, DailyPoint, DayDetail, FireCell, ProgressSummary, Region, RegionSummary, Target } from './types'
 import { geoBounds, geoCentroid } from 'd3-geo'
 import type { Feature } from 'geojson'
 import { REGIONS } from './regions'
@@ -66,8 +66,9 @@ async function live<T>(endpoint: string, path: string, normalize: (x: unknown) =
     } catch (e) {
       last = e
       const status = (e as { status?: number }).status
-      // a wrong shape or a 4xx won't fix itself; network errors, timeouts and 5xx might
-      if ((e as { final?: boolean }).final || (status && status >= 400 && status < 500)) break
+      // only a dropped connection, a timeout or a gateway/waking reply (502/503/504) can fix itself;
+      // a wrong shape, a 4xx or a 500 from the query won't, so fail fast
+      if ((e as { final?: boolean }).final || (status && ![502, 503, 504].includes(status))) break
       await sleep(4000 * (attempt + 1))
     }
   }
@@ -178,7 +179,7 @@ function normSummary(x: unknown, regionId: string, year: number): RegionSummary 
   if (!isObj(x) || !('undercountPct' in x)) return null
   const pct = num(x.undercountPct)
   const hs = isObj(x.humanScore) ? x.humanScore : null
-  const trend = Array.isArray(x.trend) ? x.trend.filter(isObj).map((t) => ({
+  const trend = Array.isArray(x.trend) && x.trend.length && isObj(x.trend[0]) && 'raw' in x.trend[0] ? x.trend.filter(isObj).map((t) => ({
     year: num(t.year), raw: num(t.raw), corrected: num(t.corrected, num(t.raw)), lo: num(t.lo, num(t.corrected)), hi: num(t.hi, num(t.corrected)),
   })) : []
   const weekday = Array.isArray(x.weekdayCounts) ? x.weekdayCounts.map((v) => num(v)) : []
@@ -197,9 +198,18 @@ function normSummary(x: unknown, regionId: string, year: number): RegionSummary 
     // the team backend counts EXTRACT(dow) 0..6 = Sun..Sat; our charts are Monday-first
     weekdayCounts: weekday.length === 7 ? (x.weekdayStart === 'monday' ? weekday : [...weekday.slice(1), weekday[0]]) : [0, 0, 0, 0, 0, 0, 0],
     trend,
+    statTrend: normStatTrend(x.trend),
     trendSurvives: Boolean(x.trendSurvives),
     verdict: typeof x.verdict === 'string' ? x.verdict : '',
   }
+}
+
+/** the science team's trend object on /countries/{id}/summary, exactly as sent (null when absent) */
+function normStatTrend(t: unknown): StatTrend | null {
+  if (!isObj(t) || !Array.isArray(t.series)) return null
+  const series = t.series.filter(isObj).map((p) => ({ year: num(p.year), count: num(p.count, NaN) })).filter((p) => p.year && Number.isFinite(p.count))
+  if (!series.length) return null
+  return { series, slope: num(t.slope, NaN), direction: String(t.direction ?? ''), significance: String(t.significance ?? ''), pValue: num(t.pValue, NaN) }
 }
 
 /** null / missing = the backend has no score for the area ("no score"); a real 0.0 stays 0.0 */

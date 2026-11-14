@@ -50,6 +50,18 @@ export interface FireCell {
 
 export type ConfidenceLevel = 'low' | 'medium' | 'high'
 
+/** Vegetation-fire trend from the science team's analysis (per country). */
+export interface StatTrend {
+  series: { year: number; count: number }[]
+  /** Sen's slope, fires per year */
+  slope: number
+  /** e.g. "Increasing", "Decreasing", "No Significant Trend" (as sent) */
+  direction: string
+  /** e.g. "Statistically Significant", "Not Statistically Significant" (as sent) */
+  significance: string
+  pValue: number
+}
+
 /**
  * The evidence behind an area's human score (science team, via the backend).
  * NaN / null = the backend has no value; nothing is ever filled in.
@@ -91,6 +103,8 @@ export interface RegionSummary {
   humanScore: { legacy: number; harmonized: number }
   /** range, confidence and coverage behind humanScore.harmonized */
   humanStats: HumanStats
+  /** science team's 2018–2024 trend test (Sen slope, significance); null when the backend has none */
+  statTrend: StatTrend | null
   /** Mean detections by weekday, Monday first (7 values). */
   weekdayCounts: number[]
   trend: TrendPoint[]
