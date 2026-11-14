@@ -11,5 +11,6 @@ public record RegionSummaryDto(
     double? HumanScoreHigh,
     ConfidenceCountDto Confidence,
     int ScoredFires,
-    int TotalFires
+    int TotalFires,
+    TrendDto? Trend
 );
