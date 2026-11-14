@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 using DuckDB.NET.Data;
-using System.Data;
+using System.Data.Common;
 using api.Config;
 
 
@@ -8,14 +8,17 @@ namespace api.Services;
 
 public class DuckDbService : IDuckDbService
 {
-    private readonly string _baseUrl;
+    private readonly string _engineerUrl;
+    private readonly string _scientistUrl;
+
 
     public DuckDbService(IOptions<DataSettings> options)
     {
-        _baseUrl = options.Value.HuggingFaceBaseUrl;
+        _engineerUrl = options.Value.EngineerUrl;
+        _scientistUrl = options.Value.ScientistUrl;
     }
 
-    public IDbConnection CreateConnection()
+    public DbConnection CreateConnection()
     {
         var connection = new DuckDBConnection("DataSource=:memory:");
         connection.Open();
@@ -27,5 +30,6 @@ public class DuckDbService : IDuckDbService
         return connection;
     }
 
-    public string GetBaseUrl() => _baseUrl;
+    public string GetEngineerUrl() => _engineerUrl;
+    public string GetScientistUrl() => _scientistUrl;
 }

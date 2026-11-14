@@ -76,10 +76,10 @@ public class DataController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("regions")]
-    public async Task<IActionResult> GetRegions()
+    [HttpGet("countries")]
+    public async Task<IActionResult> GetCountries()
     {
-        var result = await _repo.GetRegionsAsync();
+        var result = await _repo.GetCountriesAsync();
         return Ok(result);
     }
 
