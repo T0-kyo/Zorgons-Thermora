@@ -52,7 +52,9 @@ async function countryCaption(id: string, name: string, year: number, h: number)
   const s = await fetchSummary(id, year)
   const dip = weekendDip(s.weekdayCounts)
   const rhythm = Math.abs(dip) >= 3 ? ` Fires change ${dip > 0 ? '+' : ''}${dip.toFixed(0)}% at weekends.` : ''
-  return `${name}, ${year}: ${humanLabel(h).toLowerCase()}, human likelihood ${fmtHuman(h)}, from ${fires(s.firesHarmonized)} fires.${rhythm}`
+  const st = s.humanStats
+  const range = Number.isFinite(st.low) && Number.isFinite(st.high) ? ` (95% range ${st.low.toFixed(2)} to ${st.high.toFixed(2)}${st.confidence ? `, ${st.confidence} confidence` : ''})` : ''
+  return `${name}, ${year}: ${humanLabel(h).toLowerCase()}, human likelihood ${fmtHuman(h)}${range}.${rhythm}`
 }
 
 const STEPS: Step[] = [

@@ -4,6 +4,16 @@
 
 **Status:** the frontend calls **`https://zorgons-thermora-776b3.containers.snapdeploy.app`** (checks `GET /health` at startup). It shows **real data only**: there is no sample-data fallback. A failing or malformed endpoint shows "unavailable" in its place and the badge reads "Backend unreachable". A human score of 0.0 (no scored fires) is shown as "no score". Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
 
+**Human-score evidence (science team, backend 62e6e0a).** The app reads and shows, wherever a human score appears:
+- `/api/cells`: `human` (null = no score, grey), `humanLow`, `humanHigh`, `confidence`, `scoredFires`.
+- `/api/countries/{id}/summary` and `/api/summary`: `humanScoreHarmonized`, `humanScoreLow`, `humanScoreHigh`, `confidence: { low, medium, high }`, `scoredFires`, `totalFires`.
+- `/api/progress`: `humanLikelihood.{ harmonized, low, high, confidence, scoredFires }`.
+
+Shown as "0.89, 95% range 0.80 to 0.95, confidence High, based on N of M fires scored". Open items on the backend side:
+`totalFires` must be `COUNT(*)` of fire records (today it equals the detection sum, so the app hides "of M");
+confidence counts must use `COUNT(CASE …)` (today `SUM(CASE …)` is NULL for a country-year with no fires and the summary returns 500);
+`humanScoreLegacy` is null (the app then hides the legacy-vs-corrected human comparison).
+
 Backend team: the **decisions in section 1** block us. Please answer them at the bottom of this file or tell us directly.
 
 ---

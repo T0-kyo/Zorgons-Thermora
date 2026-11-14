@@ -6,7 +6,7 @@ import { useDataStatus } from '../shared/dataStatus'
 import { useEffect, useState } from 'react'
 import { getDaily, getDay, getGlobalSummary, getProgress, getSummary } from '../shared/api'
 import { REGIONS } from '../shared/regions'
-import type { DailyPoint, DayDetail, ProgressSummary, RegionSummary, Target } from '../shared/types'
+import type { HumanStats, DailyPoint, DayDetail, ProgressSummary, RegionSummary, Target } from '../shared/types'
 
 /** % more fires in the harmonized record than in the legacy one (same formula as the summary). */
 export const undercountPct = (legacy: number, harmonized: number) =>
@@ -50,8 +50,10 @@ export interface Totals {
   legacy: number
   harmonized: number
   pct: number
-  /** area likelihood (0–1) that fire is human-driven, weighted by harmonized fires */
+  /** average human score (0–1); NaN = no score */
   human: number
+  /** range / confidence / coverage behind it */
+  stats?: HumanStats
 }
 export interface YearTotals {
   /** null when /api/summary did not answer */
@@ -71,7 +73,7 @@ export function fetchYearTotals(year: number) {
   return cached(totalsCache, `${year}:${REGIONS.map((r) => r.id).join('|')}`, async () => {
     const toTotals = (s: RegionSummary): Totals => ({
       legacy: s.firesLegacy, harmonized: s.firesHarmonized,
-      pct: undercountPct(s.firesLegacy, s.firesHarmonized), human: s.humanScore.harmonized,
+      pct: undercountPct(s.firesLegacy, s.firesHarmonized), human: s.humanScore.harmonized, stats: s.humanStats,
     })
     // each figure stands alone: a failed call leaves only its own number blank
     const [g, ...rows] = await Promise.all([

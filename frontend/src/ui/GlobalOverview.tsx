@@ -43,7 +43,7 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
           {!totals.global ? (
             <p className="text-sm text-warn">Worldwide totals are unavailable right now.</p>
           ) : human ? (
-            <HumanHero value={totals.global!.human} size="text-[38px]" />
+            <HumanHero value={totals.global!.human} stats={totals.global!.stats} period={String(year)} size="text-[38px]" />
           ) : (
             <>
               <div className="flex items-end justify-between gap-3">

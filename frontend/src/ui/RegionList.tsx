@@ -5,6 +5,16 @@ import { REGIONS } from '../shared/regions'
 import { useDataStatus } from '../shared/dataStatus'
 import { fmtPct, useYearTotals, type Totals } from './data'
 
+/** hover text: the 95% range and confidence behind a country's score */
+const rangeTitle = (t: Totals | undefined) => {
+  const s = t?.stats
+  if (!s) return undefined
+  const parts: string[] = []
+  if (Number.isFinite(s.low) && Number.isFinite(s.high)) parts.push(`95% range ${s.low.toFixed(2)} to ${s.high.toFixed(2)}`)
+  if (s.confidence) parts.push(`${s.confidence} confidence`)
+  if (Number.isFinite(s.scoredFires)) parts.push(`${s.scoredFires.toLocaleString()} fires scored`)
+  return parts.join(', ') || undefined
+}
 const valueOf = (t: Totals | undefined, human: boolean) => (t ? (human ? (Number.isFinite(t.human) ? t.human : 0) : t.pct) : 0)
 const fmtValue = (t: Totals | undefined, human: boolean) => (!t ? '' : human ? fmtHuman(t.human) : `+${fmtPct(t.pct, 0)}`)
 
@@ -76,7 +86,7 @@ export default function RegionList() {
             >
               <div className="flex items-baseline justify-between gap-2">
                 <span className={`truncate text-[14px] ${active ? 'text-cyan' : 'text-text/85 group-hover:text-text'}`}>{r.name}</span>
-                <span className="font-mono text-[13px] text-missed">{fmtValue(t, human)}</span>
+                <span className="font-mono text-[13px] text-missed" title={human ? rangeTitle(t) : undefined}>{fmtValue(t, human)}</span>
               </div>
               <MiniBar v={valueOf(t, human)} max={max} human={human} />
             </button>

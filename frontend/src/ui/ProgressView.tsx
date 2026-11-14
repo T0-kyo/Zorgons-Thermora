@@ -89,7 +89,7 @@ export default function ProgressView({ target }: { target: Target }) {
   return (
     <div className="mt-3 space-y-4">
       {human ? (
-        <HumanHero value={p.humanLikelihood.harmonized} legacy={p.humanLikelihood.legacy} />
+        <HumanHero value={p.humanLikelihood.harmonized} legacy={p.humanLikelihood.legacy} stats={p.humanStats} period={p.years.first === p.years.last ? String(p.years.first) : `${p.years.first} to ${p.years.last}`} />
       ) : (
         <div>
           <div className="label">
@@ -140,6 +140,7 @@ export default function ProgressView({ target }: { target: Target }) {
               { value: p.humanLikelihood.legacy, label: 'Legacy', tone: 'fire' },
               { value: p.humanLikelihood.harmonized, label: 'Corrected', tone: 'text' },
             ]}
+            range={[p.humanStats.low, p.humanStats.high]}
           />
         </div>
       )}

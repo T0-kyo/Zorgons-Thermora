@@ -17,11 +17,20 @@ interface Marker {
 }
 const TONE = { fire: 'bg-fire', cyan: 'bg-cyan', text: 'bg-text' }
 
-export function HumanScale({ markers = [], compact = false }: { markers?: Marker[]; compact?: boolean }) {
+export function HumanScale({ markers = [], compact = false, range }: { markers?: Marker[]; compact?: boolean; range?: [number, number] }) {
+  const band = range && Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[1] >= range[0] ? range : null
   return (
     <div>
       <div className="relative">
         <div className={`${compact ? 'h-1.5' : 'h-2'} rounded-sm`} style={{ background: RAMP }} />
+        {band && (
+          // the 95% range around the score: a bracket over the ramp
+          <div
+            className="absolute -top-1.5 bottom-[-6px] rounded-sm border border-text/70 bg-white/10 transition-[left,width] duration-700"
+            style={{ left: `${band[0] * 100}%`, width: `${Math.max(0.6, (band[1] - band[0]) * 100)}%` }}
+            title={`95% range ${band[0].toFixed(2)} to ${band[1].toFixed(2)}`}
+          />
+        )}
         {markers.filter((m) => Number.isFinite(m.value)).map((m) => (
           <div
             key={m.label}

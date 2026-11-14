@@ -89,8 +89,10 @@ export default function AboutModal() {
                 country and year.
               </p>
               <p>
-                <b>3. Human or natural.</b> The science team gives each fire a 0–1 score for its association with human activity. We show the
-                average for each area, never a verdict on a single fire. Areas with no scored fires are shown in grey as "no score".
+                <b>3. Human or natural.</b> The science team gives each fire a 0–1 score for its association with human activity, with a 95%
+                range and a confidence level (low, medium or high) based on how much data supports it. We show the average for each area,
+                never a verdict on a single fire. The range shown is the average of the scored fires' ranges. Not every fire is scored: areas
+                with no scored fires are shown in grey as "no score".
               </p>
             </Block>
 

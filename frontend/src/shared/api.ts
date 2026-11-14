@@ -10,7 +10,7 @@
  * Components must call these functions, never fetch() directly.
  */
 import { YEARS } from './types'
-import type { DailyPoint, DayDetail, FireCell, ProgressSummary, Region, RegionSummary, Target } from './types'
+import type { ConfidenceLevel, HumanStats, DailyPoint, DayDetail, FireCell, ProgressSummary, Region, RegionSummary, Target } from './types'
 import { geoBounds, geoCentroid } from 'd3-geo'
 import type { Feature } from 'geojson'
 import { REGIONS } from './regions'
@@ -134,6 +134,9 @@ function normCells(x: unknown): FireCell[] | null {
     regionId: String(r.regionId ?? r.region ?? ''),
     legacy: num(r.legacy), harmonized: num(r.harmonized, num(r.legacy)),
     human: r.human == null ? -1 : clamp01(num(r.human, 0)),
+    humanLow: scoreOrNaN(r.humanLow), humanHigh: scoreOrNaN(r.humanHigh),
+    confidence: level(r.confidence),
+    scoredFires: num(r.scoredFires, NaN),
   }))
 }
 
@@ -160,9 +163,13 @@ function normSummary(x: unknown, regionId: string, year: number): RegionSummary 
     undercountPct: pct, undercountCi: parseCi(x.undercountCi, pct),
     firesLegacy: num(x.firesLegacy), firesHarmonized: num(x.firesHarmonized),
     humanScore: {
-      legacy: scoreOrNaN(num(hs?.legacy, num(x.humanScoreLegacy, NaN))),
-      harmonized: scoreOrNaN(num(hs?.harmonized, num(x.humanScoreHarmonized, NaN))),
+      legacy: scoreOrNaN(hs?.legacy ?? x.humanScoreLegacy),
+      harmonized: scoreOrNaN(hs?.harmonized ?? x.humanScoreHarmonized),
     },
+    // totalFires must count fire records; while the backend still sends the detection sum (= firesHarmonized),
+    // leave it out rather than show a misleading "X of Y fires"
+    humanStats: humanStats(x.humanScoreLow, x.humanScoreHigh, x.confidence, x.scoredFires,
+      num(x.totalFires, NaN) === num(x.firesHarmonized, NaN) ? null : x.totalFires),
     // the team backend counts EXTRACT(dow) 0..6 = Sun..Sat; our charts are Monday-first
     weekdayCounts: weekday.length === 7 ? (x.weekdayStart === 'monday' ? weekday : [...weekday.slice(1), weekday[0]]) : [0, 0, 0, 0, 0, 0, 0],
     trend,
@@ -171,8 +178,25 @@ function normSummary(x: unknown, regionId: string, year: number): RegionSummary 
   }
 }
 
-/** the backend sends 0.0 when no fire in the area has a score: that is "unknown", not "natural" */
-function scoreOrNaN(v: number) { return Number.isFinite(v) && v > 0.001 ? clamp01(v) : NaN }
+/** null / missing = the backend has no score for the area ("no score"); a real 0.0 stays 0.0 */
+function scoreOrNaN(v: unknown) { const n = num(v, NaN); return Number.isFinite(n) ? clamp01(n) : NaN }
+
+const LEVELS = ['low', 'medium', 'high'] as const
+function level(v: unknown): ConfidenceLevel | null {
+  const s = String(v ?? '').toLowerCase()
+  return (LEVELS as readonly string[]).includes(s) ? (s as ConfidenceLevel) : null
+}
+/** range, confidence counts and coverage, exactly as the backend sends them (no gaps filled) */
+function humanStats(low: unknown, high: unknown, conf: unknown, scored: unknown, total: unknown): HumanStats {
+  let counts: HumanStats['counts'] = null
+  let confidence: ConfidenceLevel | null = level(conf)
+  if (isObj(conf)) {
+    counts = { low: num(conf.low), medium: num(conf.medium), high: num(conf.high) }
+    const best = LEVELS.reduce((a, b) => (counts![b] > counts![a] ? b : a), 'low' as ConfidenceLevel)
+    confidence = counts[best] > 0 ? best : null
+  }
+  return { low: scoreOrNaN(low), high: scoreOrNaN(high), counts, confidence, scoredFires: num(scored, NaN), totalFires: num(total, NaN) }
+}
 
 function normRegions(x: unknown): Region[] | null {
   if (!Array.isArray(x) || !x.length || !x.every((r) => isObj(r) && 'id' in r && 'name' in r)) return null
@@ -272,11 +296,11 @@ async function countriesToRegions(x: unknown): Promise<Region[] | null> {
 
 /**
  * Cells as the backend sent them, with country names mapped to our ids. Nothing is rejected or
- * replaced: a cell whose human score is 0 (backend COALESCE = no scored fires) is marked -1 = "no score".
+ * replaced (human null → -1 = "no score", see normCells).
  */
 function usableCells(cells: FireCell[] | null): FireCell[] | null {
   if (!cells) return null
-  return cells.map((c) => ({ ...c, regionId: toRegionId(c.regionId), human: c.human > 0.001 ? c.human : -1 }))
+  return cells.map((c) => ({ ...c, regionId: toRegionId(c.regionId) }))
 }
 
 export async function getSummary(regionId: string, year: number): Promise<RegionSummary> {
@@ -358,8 +382,9 @@ function normProgress(x: unknown, t: Target): ProgressSummary | null {
     : change > 10 ? 'worse' : change < -10 ? 'better' : 'stable'
   const hl = x.humanLikelihood
   const human = isObj(hl)
-    ? { legacy: scoreOrNaN(num(hl.legacy, NaN)), harmonized: scoreOrNaN(num(hl.harmonized, NaN)) }
-    : { legacy: scoreOrNaN(num(hl, NaN)), harmonized: scoreOrNaN(num(hl, NaN)) }
+    ? { legacy: scoreOrNaN(hl.legacy), harmonized: scoreOrNaN(hl.harmonized) }
+    : { legacy: scoreOrNaN(hl), harmonized: scoreOrNaN(hl) }
+  const stats = isObj(hl) ? humanStats(hl.low, hl.high, hl.confidence, hl.scoredFires, hl.totalFires) : humanStats(null, null, null, null, null)
   const years = isObj(x.years)
     ? { first: num(x.years.first), last: num(x.years.last) }
     : { first: series[0]?.year ?? 2001, last: series[series.length - 1]?.year ?? 2025 }
@@ -368,6 +393,7 @@ function normProgress(x: unknown, t: Target): ProgressSummary | null {
     name, years, series,
     baseline: num(x.baseline), recent: num(x.recent), changePct: change, direction,
     humanLikelihood: human,
+    humanStats: stats,
     covered: x.covered === undefined ? series.some((p) => p.harmonized > 0) : Boolean(x.covered),
   }
 }

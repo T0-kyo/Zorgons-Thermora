@@ -13,7 +13,7 @@ import WeeklyChart from '../charts/WeeklyChart'
 import TrendChart from '../charts/TrendChart'
 import CountUp from './CountUp'
 import { fmtPct, useSummary } from './data'
-import { HeroCount, RecordBar, Section } from './RecordBar'
+import { HeroCount, RecordBar, Section, HumanHero, HumanEvidence } from './RecordBar'
 import GlobalOverview from './GlobalOverview'
 import PlaceSearch from './PlaceSearch'
 import TargetPanel from './TargetPanel'
@@ -69,7 +69,14 @@ export function RegionFindings({ regionId, isPlace }: { regionId: string; isPlac
             </div>
           </Section>
           <Section q="Q2" title="Human or natural?">
-            <HumanGauge legacy={s.humanScore.legacy} harmonized={s.humanScore.harmonized} mode={mode} />
+            {Number.isFinite(s.humanScore.legacy) ? (
+              <>
+                <HumanGauge legacy={s.humanScore.legacy} harmonized={s.humanScore.harmonized} mode={mode} />
+                <HumanEvidence stats={s.humanStats} period={String(year)} />
+              </>
+            ) : (
+              <HumanHero value={s.humanScore.harmonized} stats={s.humanStats} period={String(year)} size="text-[34px]" />
+            )}
             <div className="mt-3">
               <div className="mb-1 flex items-baseline justify-between">
                 <span className="label">Weekly rhythm</span>

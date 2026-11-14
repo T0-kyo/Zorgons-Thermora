@@ -36,10 +36,35 @@ export interface FireCell {
   legacy: number
   harmonized: number
   /**
-   * Likelihood (0–1) that fire activity in this cell is human-driven, from the weekly-cycle test.
-   * A probability for the AREA, not a label on any single fire.
+   * Average human-association score (0–1) of the scored fires in this cell (science team).
+   * -1 = no scored fires ("no score"). Describes the AREA, not any single fire.
    */
   human: number
+  /** average 95% interval bounds of the scored fires (NaN when none) */
+  humanLow?: number
+  humanHigh?: number
+  /** most common confidence level among the scored fires */
+  confidence?: ConfidenceLevel | null
+  scoredFires?: number
+}
+
+export type ConfidenceLevel = 'low' | 'medium' | 'high'
+
+/**
+ * The evidence behind an area's human score (science team, via the backend).
+ * NaN / null = the backend has no value; nothing is ever filled in.
+ */
+export interface HumanStats {
+  /** average of the scored fires' 95% interval bounds */
+  low: number
+  high: number
+  /** fires per confidence level ("confidence in the human score", not the detection) */
+  counts: Record<ConfidenceLevel, number> | null
+  /** the level most scored fires have */
+  confidence: ConfidenceLevel | null
+  scoredFires: number
+  /** all fires in the area (NaN when the backend doesn't say) */
+  totalFires: number
 }
 
 export interface TrendPoint {
@@ -62,8 +87,10 @@ export interface RegionSummary {
   undercountCi: [number, number]
   firesLegacy: number
   firesHarmonized: number
-  /** Probability (0–1) that fire activity is human-driven, from the weekly-cycle test. */
+  /** Average human-association score (0–1) of scored fires; NaN = no score. */
   humanScore: { legacy: number; harmonized: number }
+  /** range, confidence and coverage behind humanScore.harmonized */
+  humanStats: HumanStats
   /** Mean detections by weekday, Monday first (7 values). */
   weekdayCounts: number[]
   trend: TrendPoint[]
@@ -109,6 +136,8 @@ export interface ProgressSummary {
   direction: 'worse' | 'better' | 'stable'
   /** area-level likelihood of human-driven fire (0–1), legacy vs corrected record */
   humanLikelihood: { legacy: number; harmonized: number }
+  /** range, confidence and coverage behind humanLikelihood.harmonized */
+  humanStats: HumanStats
   /** false when the place is outside every study region (no data) */
   covered: boolean
 }
