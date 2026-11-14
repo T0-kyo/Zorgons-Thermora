@@ -11,16 +11,10 @@ public class DuckDbRepository : IDataRepository
     private readonly IDuckDbService _db;
     private readonly IMemoryCache _cache;
 
-    // Tuple: (File Name on Hugging Face, Display Name for Frontend)
     private static readonly (string FileName, string DisplayName)[] AllCountries = {
-        ("Angola", "Angola"), 
-        ("China", "China"), 
-        ("Egypt", "Egypt"), 
-        ("Greece", "Greece"), 
-        ("Oman", "Oman"),
-        ("United_Kingdom", "United Kingdom"), 
-        ("United_States", "United States of America"), 
-        ("Yemen", "Yemen")
+        ("Angola", "Angola"), ("China", "China"), ("Egypt", "Egypt"), 
+        ("Greece", "Greece"), ("Oman", "Oman"), ("United_Kingdom", "United Kingdom"), 
+        ("United_States", "United States of America"), ("Yemen", "Yemen")
     };
 
     public DuckDbRepository(IDuckDbService db, IMemoryCache cache)
@@ -29,30 +23,34 @@ public class DuckDbRepository : IDataRepository
         _cache = cache;
     }
 
-    // Returns a single quoted path for one country, or a comma-separated list of paths for all
+    // 1. FIXED: Array syntax for multiple files & Security validation
     private string GetEngineerPath(string? country)
     {
         if (!string.IsNullOrEmpty(country))
         {
-            // Replace spaces with underscores for the file name
             string fileName = country.Replace(" ", "_");
+            if (!AllCountries.Any(c => c.FileName == fileName))
+                throw new Exception($"Invalid country: {country}");
+
             return $"'{_db.GetBaseUrl()}/countries/{fileName}.parquet'";
         }
         
-        // Use c.FileName to extract just the string from the tuple
-        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}.parquet'"));
+        // Return as a proper DuckDB array: ['url1', 'url2']
+        return "[" + string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}.parquet'")) + "]";
     }
 
     private string GetScientistPath(string? country)
     {
         if (!string.IsNullOrEmpty(country))
         {
-            // Replace spaces with underscores for the file name
             string fileName = country.Replace(" ", "_");
+            if (!AllCountries.Any(c => c.FileName == fileName))
+                throw new Exception($"Invalid country: {country}");
+
             return $"'{_db.GetBaseUrl()}/countries/{fileName}_human_likelihood.parquet'";
         }
         
-        return string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}_human_likelihood.parquet'"));
+        return "[" + string.Join(", ", AllCountries.Select(c => $"'{_db.GetBaseUrl()}/countries/{c.FileName}_human_likelihood.parquet'")) + "]";
     }
 
     private static double? GetNullableDouble(DbDataReader reader, string columnName)
@@ -69,6 +67,7 @@ public class DuckDbRepository : IDataRepository
         using var connection = _db.CreateConnection();
         using var cmd = connection.CreateCommand();
 
+        // Removed "AND e.country = ?" because the file is already isolated
         cmd.CommandText = $@"
             SELECT 
                 ROUND(e.latitude * 2) / 2 AS Lat,
@@ -124,6 +123,7 @@ public class DuckDbRepository : IDataRepository
 
         string trendUrl = $"{_db.GetBaseUrl()}/Vegetation_Fire_Trend_Analysis_2018_2024.parquet";
 
+        // 3. FIXED: REPLACE(?, '_', ' ') in the trend join
         cmd.CommandText = $@"
             WITH MainData AS (
                 SELECT 
@@ -151,7 +151,7 @@ public class DuckDbRepository : IDataRepository
             ),
             TrendData AS (
                 SELECT * FROM read_parquet('{trendUrl}')
-                WHERE REPLACE(country, '_', ' ') = ?
+                WHERE REPLACE(country, '_', ' ') = REPLACE(?, '_', ' ')
             )
             SELECT 
                 m.*,
@@ -234,12 +234,8 @@ public class DuckDbRepository : IDataRepository
         string engineerPath = GetEngineerPath(region);
         string scientistPath = GetScientistPath(region);
 
-        if (!string.IsNullOrEmpty(region))
-        {
-            spatialFilter = "AND e.country = ?";
-            parameters.Add(new DuckDBParameter { Value = region });
-        }
-        else if (lat.HasValue && lng.HasValue)
+        // 2. FIXED: Dropped the country = ? filter for country-specific queries
+        if (string.IsNullOrEmpty(region) && lat.HasValue && lng.HasValue)
         {
             double radius = radiusKm ?? 150;
             spatialFilter = $@"AND (
@@ -254,7 +250,7 @@ public class DuckDbRepository : IDataRepository
             parameters.Add(new DuckDBParameter { Value = lng.Value });
             parameters.Add(new DuckDBParameter { Value = radius });
         }
-        else
+        else if (string.IsNullOrEmpty(region))
         {
             return new ProgressDto(new List<ProgressSeriesDto>(), 0, 0, 0, "stable", new HumanLikelihoodDto(null, null, null, null, new ConfidenceCountDto(0,0,0), 0), false);
         }
@@ -356,12 +352,8 @@ public class DuckDbRepository : IDataRepository
         string engineerPath = GetEngineerPath(region);
         cmd.Parameters.Add(new DuckDBParameter { Value = date });
 
-        if (!string.IsNullOrEmpty(region))
-        {
-            spatialFilter = "AND country = ?";
-            cmd.Parameters.Add(new DuckDBParameter { Value = region });
-        }
-        else if (lat.HasValue && lng.HasValue)
+        // 2. FIXED: Dropped the country = ? filter
+        if (string.IsNullOrEmpty(region) && lat.HasValue && lng.HasValue)
         {
             double radius = radiusKm ?? 150;
             spatialFilter = $@"AND (
@@ -376,7 +368,7 @@ public class DuckDbRepository : IDataRepository
             cmd.Parameters.Add(new DuckDBParameter { Value = lng.Value });
             cmd.Parameters.Add(new DuckDBParameter { Value = radius });
         }
-        else
+        else if (string.IsNullOrEmpty(region))
         {
             return new DailyDto(date, 0, 0);
         }
@@ -415,12 +407,8 @@ public class DuckDbRepository : IDataRepository
         string engineerPath = GetEngineerPath(region);
         cmd.Parameters.Add(new DuckDBParameter { Value = year });
 
-        if (!string.IsNullOrEmpty(region))
-        {
-            spatialFilter = "AND country = ?";
-            cmd.Parameters.Add(new DuckDBParameter { Value = region });
-        }
-        else if (lat.HasValue && lng.HasValue)
+        // 2. FIXED: Dropped the country = ? filter
+        if (string.IsNullOrEmpty(region) && lat.HasValue && lng.HasValue)
         {
             double radius = radiusKm ?? 150;
             spatialFilter = $@"AND (
@@ -435,7 +423,7 @@ public class DuckDbRepository : IDataRepository
             cmd.Parameters.Add(new DuckDBParameter { Value = lng.Value });
             cmd.Parameters.Add(new DuckDBParameter { Value = radius });
         }
-        else
+        else if (string.IsNullOrEmpty(region))
         {
             return new List<DailyDto>();
         }
