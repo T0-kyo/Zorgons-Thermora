@@ -38,9 +38,9 @@ export default function RegionList() {
   }
 
   return (
-    <nav aria-label="Study regions" className="panel pointer-events-auto flex max-h-full w-64 shrink-0 flex-col bg-panel/60 p-2">
+    <nav aria-label="Countries" className="panel pointer-events-auto flex max-h-full w-64 shrink-0 flex-col bg-panel/60 p-2">
       <div className="flex items-baseline justify-between gap-3 px-2 pt-1 pb-2">
-        <span className="label">Regions</span>
+        <span className="label">Countries</span>
         <span className="label whitespace-nowrap">{human ? 'Human likelihood' : 'Undercount'}</span>
       </div>
       <button

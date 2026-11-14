@@ -18,6 +18,7 @@ import MobileSheet from './ui/MobileSheet'
 import { useIsMobile, useUi } from './ui/uiStore'
 import Spectrum from './ui/Spectrum'
 import ModeTabs from './ui/ModeTabs'
+import { useDataStatus } from './shared/dataStatus'
 import { CollapseButton, Rail, usePanelKey, usePanelState } from './ui/Rail'
 
 function Masthead({ onCollapse }: { onCollapse: () => void }) {
@@ -105,15 +106,15 @@ function DesktopLayout() {
       {right ? (
         <aside id="region-menu" className="column column-right relative z-10 flex min-h-0 flex-col overflow-y-auto px-5 pb-8 pt-6 [scrollbar-width:thin]">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-[22px]">Regions</h2>
-            <CollapseButton label="Regions" side="right" onClose={toggleRight} shortcut="]" controls="region-menu" />
+            <h2 className="text-[22px]">Countries</h2>
+            <CollapseButton label="Countries" side="right" onClose={toggleRight} shortcut="]" controls="region-menu" />
           </div>
           <div className="bare [&_nav]:w-full [&_nav]:p-0 [&_nav>div:first-child]:px-0 [&_nav>div:first-child>span:first-child]:invisible">
             <RegionList />
           </div>
         </aside>
       ) : (
-        <Rail label="Regions" side="right" onOpen={toggleRight} shortcut="]" controls="region-menu" />
+        <Rail label="Countries" side="right" onOpen={toggleRight} shortcut="]" controls="region-menu" />
       )}
     </div>
   )
@@ -142,6 +143,8 @@ function MobileLayout() {
 }
 
 export default function App() {
+  // re-render everything when the backend replaces the region list
+  useDataStatus((s) => s.regionsVersion)
   const mobile = useIsMobile()
   usePlayback()
   return (

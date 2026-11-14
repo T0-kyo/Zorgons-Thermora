@@ -8,6 +8,31 @@ Backend team: the **decisions in section 1** block us. Please answer them at the
 
 ---
 
+## Compatibility with the current backend (checked against `main`, Fri 23:00)
+
+The backend's controller (`Backend/api/Controllers/DataController.cs`) has every endpoint below, under the **`/api`** prefix (`/api/cells` …). The frontend calls `/api/...` and accepts these differences automatically, so **no backend change is required for them**:
+
+| Backend sends | Frontend converts to |
+|---|---|
+| `undercountCi: "±4.3%"` (string) | `[pct − 4.3, pct + 4.3]` |
+| `humanScoreLegacy`, `humanScoreHarmonized` | `humanScore: { legacy, harmonized }` |
+| progress `humanLikelihood: 0.77` (one number) | `{ legacy: 0.77, harmonized: 0.77 }` |
+| `direction: "increasing" / "decreasing"` | `worse` / `better` |
+| `date: "2019-01-01T00:00:00"` (DateTime) | `"2019-01-01"` |
+| cells filter `?regionId=` | we send both `region` and `regionId` |
+| `GET /api/regions` (when it returns a list) | **replaces our built-in region list**, so ids always match your data. Known ids keep our camera views and outlines; new ids use your `center` |
+
+**Update Sat 10:30: COUNTRIES, not regions (team decision).** The app is now organised by country. The list comes from `GET /api/countries` (`[{ id, name }]`); each id is matched to the world map by name (or `iso3`/`code` if you add it), giving its outline and camera view automatically. `region=<id>` in every request is that country id, URL-encoded. Without the backend, a default list of 15 fire-active countries is used.
+
+**Update Sat 10:15 (checked the `backend` branch):** cells, daily, countries and meta are implemented. The frontend now:
+- fetches `/api/cells?year=` for the whole year once and maps **country names → our regions** (Natural Earth names), so `regionId` can stay a country name;
+- **refuses cells whose `human` is all 0** (placeholder), keeping sample data until real likelihoods arrive;
+- builds region calendars from **`/api/daily?region=<country>` per country** and adds them up; clicked places use sample data until `/daily` filters by lat/lng.
+
+Backend fixes still needed: real `human` values; a coarser grid + `ORDER BY Harmonized DESC` before `LIMIT 3000`; **SQL parameters instead of string interpolation (injection)**; lat/lng filtering; caching the Parquet in memory.
+
+**What is still needed (original note):** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
+
 ## 0. At a glance
 
 | # | Endpoint | Required? | What it powers | How often we call it |

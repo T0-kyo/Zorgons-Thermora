@@ -36,7 +36,7 @@ async function toPlace(name: string, context: string, lat: number, lng: number, 
   return {
     id: `${source}:${lat.toFixed(3)},${lng.toFixed(3)}`,
     name,
-    context: regionName ? `${context ? context + ', ' : ''}${regionName}` : context || 'Outside the study regions',
+    context: regionName ? (context && context !== regionName ? `${context}, ${regionName}` : regionName) : context || 'Outside the countries with data',
     lat, lng,
     radiusKm: DEFAULT_RADIUS_KM,
     regionId,

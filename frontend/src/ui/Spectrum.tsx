@@ -116,7 +116,7 @@ export default function Spectrum({ compact = false }: { compact?: boolean }) {
             {inBand.toLocaleString()}
           </span>
           <span className="text-[13px] text-dim">
-            fires in this band, {share}% of {regionId ? 'the region' : 'the world'} in {year}
+            fires in this band, {share}% of {regionId ? 'the country' : 'the world'} in {year}
           </span>
         </div>
         {!compact && (

@@ -7,7 +7,7 @@ import { geoBounds, geoContains } from 'd3-geo'
 import type { FeatureCollection, Feature } from 'geojson'
 import type { DailyPoint, DayDetail, FireCell, ProgressSummary, RegionSummary, Target, TrendPoint } from './types'
 import { YEARS } from './types'
-import { REGIONS } from './regions'
+import { REGIONS, biomeOfCode } from './regions'
 
 // ---- seeded RNG ---------------------------------------------------------
 function hash(s: string) {
@@ -42,6 +42,13 @@ const P: Record<string, { undercount: number; human: number; weekly: number; slo
   india_china: { undercount: 41, human: 0.92, weekly: 0.19, slope: 0.011, size: 0.8 },
 }
 
+const DEFAULT_P = { undercount: 18, human: 0.55, weekly: 0.06, slope: 0.005, size: 0.4 }
+/** sample-data personality for a country (via its original biome); Egypt gets its own (Nile Delta rice straw) */
+const EGYPT_P = { undercount: 35, human: 0.93, weekly: 0.16, slope: 0.008, size: 0.3 }
+const codeOf = (id: string) => REGIONS.find((r) => r.id === id)?.countries[0] ?? ''
+const biomeOf = (id: string) => (P[id] ? id : biomeOfCode(codeOf(id)))
+const pOf = (id: string) => P[id] ?? (codeOf(id) === 'EGY' ? EGYPT_P : P[biomeOf(id) ?? ''] ?? DEFAULT_P)
+
 // ---- geometry ------------------------------------------------------------
 let countriesP: Promise<FeatureCollection> | null = null
 const loadCountries = () =>
@@ -74,7 +81,7 @@ async function regionLayout(regionId: string) {
   }
   const spread = Math.max(2, Math.min(9, lngSpan / 10))
   const cells: { lat: number; lng: number; w: number; small: number; human: number }[] = []
-  const target = Math.round(150 * (P[regionId]?.size ?? 0.5) + 50)
+  const target = Math.round(110 * pOf(regionId).size + 40)
   for (let i = 0; cells.length < target && i < target * 30; i++) {
     const c = centres[Math.floor(r() * centres.length)]
     if (!c) break
@@ -84,7 +91,7 @@ async function regionLayout(regionId: string) {
     const small = r()
     // small-fire cells (crop/pasture burning) lean human; big remote fires lean natural
     // soft-clipped so values approach 0/1 smoothly instead of piling up at the ends
-    const raw = (P[regionId]?.human ?? 0.5) + (small - 0.5) * 0.4 + gauss(r) * 0.07
+    const raw = pOf(regionId).human + (small - 0.5) * 0.4 + gauss(r) * 0.07
     const human = 0.02 + 0.96 / (1 + Math.exp(-(raw - 0.5) * 5.2))
     cells.push({ lat, lng, w: 0.3 + r() ** 2 * 3, small, human: +human.toFixed(2) })
   }
@@ -93,7 +100,7 @@ async function regionLayout(regionId: string) {
 }
 
 const yearFactor = (regionId: string, year: number) => {
-  const p = P[regionId]
+  const p = pOf(regionId)
   const r = rng(`yr:${regionId}:${year}`)
   return Math.max(0.3, 1 + p.slope * (year - 2001) * 6 + gauss(r) * 0.12)
 }
@@ -105,7 +112,7 @@ export async function mockCells(year: number, regionId?: string | null): Promise
   for (const id of ids) {
     const layout = await regionLayout(id)
     const yf = yearFactor(id, year)
-    const u = P[id].undercount / 100
+    const u = pOf(id).undercount / 100
     const r = rng(`cells:${id}:${year}`)
     for (const c of layout) {
       const legacy = Math.round(c.w * yf * 40 * (0.7 + r() * 0.6))
@@ -118,7 +125,7 @@ export async function mockCells(year: number, regionId?: string | null): Promise
 }
 
 export async function mockSummary(regionId: string, year: number): Promise<RegionSummary> {
-  const p = P[regionId]
+  const p = pOf(regionId)
   const cells = await mockCells(year, regionId)
   const firesLegacy = cells.reduce((s, c) => s + c.legacy, 0)
   const firesHarmonized = cells.reduce((s, c) => s + c.harmonized, 0)
@@ -201,8 +208,8 @@ export async function mockDaily(t: Target, year: number): Promise<DailyPoint[]> 
   const totL = cells.reduce((s, c) => s + c.legacy, 0)
   const totH = cells.reduce((s, c) => s + c.harmonized, 0)
   const regionId = t.kind === 'region' ? t.regionId : dominantRegion(cells)
-  const peaks = SEASON[regionId ?? ''] ?? [[200, 40, 1]]
-  const weekly = P[regionId ?? '']?.weekly ?? 0.05
+  const peaks = (codeOf(regionId ?? '') === 'EGY' ? [[300, 18, 1.2], [150, 20, 0.5]] : SEASON[biomeOf(regionId ?? '') ?? '']) ?? [[200, 40, 1]]
+  const weekly = pOf(regionId ?? '').weekly
   const r = rng(`daily:${targetKey(t)}:${year}`)
   const days: { date: string; w: number; wd: number }[] = []
   const start = Date.UTC(year, 0, 1)

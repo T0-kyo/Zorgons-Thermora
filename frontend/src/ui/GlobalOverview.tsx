@@ -55,8 +55,8 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
           )}
 
           <div className="border-t border-line pt-3">
-            <div className="label mb-1.5">{human ? 'Most likely human-driven' : 'Most undercounted regions'}</div>
-            {ranked.map(({ r, t }) => {
+            <div className="label mb-1.5">{human ? 'Most likely human-driven' : 'Most undercounted countries'}</div>
+            {ranked.slice(0, 8).map(({ r, t }) => {
               const v = human ? t.human : t.pct
               return (
                 <button
