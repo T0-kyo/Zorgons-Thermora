@@ -12,8 +12,16 @@ public class DuckDbRepository : IDataRepository
     private readonly IMemoryCache _cache;
 
     // Hardcoded list based on your Hugging Face screenshot
-    private static readonly string[] AllCountries = {
-        "Angola", "China", "Egypt", "Greece", "Oman", "United Kingdom", "United States", "Yemen"
+        // Tuple: (File Name on Hugging Face, Display Name for Frontend)
+    private static readonly (string FileName, string DisplayName)[] AllCountries = {
+        ("Angola", "Angola"), 
+        ("China", "China"), 
+        ("Egypt", "Egypt"), 
+        ("Greece", "Greece"), 
+        ("Oman", "Oman"),
+        ("United_Kingdom", "United Kingdom"), 
+        ("United_States", "United States of America"), 
+        ("Yemen", "Yemen")
     };
 
     public DuckDbRepository(IDuckDbService db, IMemoryCache cache)
