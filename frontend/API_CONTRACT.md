@@ -22,7 +22,14 @@ The backend's controller (`Backend/api/Controllers/DataController.cs`) has every
 | cells filter `?regionId=` | we send both `region` and `regionId` |
 | `GET /api/regions` (when it returns a list) | **replaces our built-in region list**, so ids always match your data. Known ids keep our camera views and outlines; new ids use your `center` |
 
-**What is still needed:** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
+**Update Sat 10:15 (checked the `backend` branch):** cells, daily, countries and meta are implemented. The frontend now:
+- fetches `/api/cells?year=` for the whole year once and maps **country names → our regions** (Natural Earth names), so `regionId` can stay a country name;
+- **refuses cells whose `human` is all 0** (placeholder), keeping sample data until real likelihoods arrive;
+- builds region calendars from **`/api/daily?region=<country>` per country** and adds them up; clicked places use sample data until `/daily` filters by lat/lng.
+
+Backend fixes still needed: real `human` values; a coarser grid + `ORDER BY Harmonized DESC` before `LIMIT 3000`; **SQL parameters instead of string interpolation (injection)**; lat/lng filtering; caching the Parquet in memory.
+
+**What is still needed (original note):** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
 
 ## 0. At a glance
 

@@ -171,8 +171,76 @@ export async function getRegions(): Promise<Region[]> {
 
 /** regionId null/undefined = all regions (global view). Sends both `region` and `regionId` (backend uses the latter). */
 export async function getCells(year: number, regionId?: string | null): Promise<FireCell[]> {
-  const q = regionId ? `&region=${regionId}&regionId=${regionId}` : ''
-  return hybrid('cells', `/cells?year=${year}${q}`, normCells, () => mockCells(year, regionId))
+  // Always fetch the whole year once (cached) and filter here: the backend's region filter is by
+  // country name, so asking it for "amazon" would return nothing.
+  let p = yearCells.get(year)
+  if (!p) {
+    p = (async () => {
+      await countryIndex()
+      return hybrid('cells', `/cells?year=${year}`, (x) => usableCells(normCells(x)), () => mockCells(year, null))
+    })()
+    yearCells.set(year, p)
+  }
+  const all = await p
+  return regionId ? all.filter((c) => c.regionId === regionId) : all
+}
+const yearCells = new Map<number, Promise<FireCell[]>>()
+
+// ---- country names → our region ids ------------------------------------------
+// The backend labels cells with a country name ("Brazil"). We map it onto our study regions
+// via Natural Earth names (NAME / NAME_LONG / ADMIN / FORMAL_EN / ISO codes).
+const norm = (v: unknown) => String(v ?? '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '')
+let countryIdx: Promise<Map<string, { code: string; name: string }>> | null = null
+function countryIndex() {
+  return (countryIdx ??= fetch(`${import.meta.env.BASE_URL}data/countries.json`)
+    .then((r) => r.json())
+    .then((fc: { features: { properties: Record<string, unknown> }[] }) => {
+      const m = new Map<string, { code: string; name: string }>()
+      for (const f of fc.features) {
+        const p = f.properties, code = String(p.ADM0_A3), name = String(p.NAME)
+        for (const k of ['NAME', 'NAME_LONG', 'ADMIN', 'FORMAL_EN', 'NAME_SORT', 'NAME_ALT', 'SOVEREIGNT', 'ADM0_A3', 'ISO_A2']) {
+          const n = norm(p[k]); if (n && !m.has(n)) m.set(n, { code, name })
+        }
+      }
+      return m
+    })
+    .catch(() => new Map()))
+}
+let idxCache: Map<string, { code: string; name: string }> = new Map()
+void countryIndex().then((m) => { idxCache = m })
+
+/** our region id for a backend label: a region id as-is, else the region containing that country */
+function toRegionId(label: string): string {
+  if (REGIONS.some((r) => r.id === label)) return label
+  const hit = idxCache.get(norm(label))
+  return (hit && REGIONS.find((r) => r.countries.includes(hit.code))?.id) || label
+}
+/** country display names in a region (for backend calls that filter by country) */
+function countryNamesOf(regionId: string): string[] {
+  const codes = REGIONS.find((r) => r.id === regionId)?.countries ?? []
+  const out = new Set<string>()
+  for (const v of idxCache.values()) if (codes.includes(v.code)) out.add(v.name)
+  return [...out]
+}
+
+/**
+ * Only switch to backend cells when they're actually usable for the story:
+ * a real human-likelihood signal (not all 0 placeholders) and fires that land in our regions.
+ */
+function usableCells(cells: FireCell[] | null): FireCell[] | null {
+  if (!cells) return null
+  if (!cells.length) return null
+  const mapped = cells.map((c) => ({ ...c, regionId: toRegionId(c.regionId) }))
+  const humanReal = mapped.some((c) => c.human > 0.001 && c.human < 0.999) || mapped.some((c) => c.human >= 0.999)
+  if (!humanReal) {
+    console.warn('[thermora] backend cells have no human likelihood yet (all 0) - keeping sample data')
+    return null
+  }
+  if (!mapped.some((c) => REGIONS.some((r) => r.id === c.regionId))) {
+    console.warn('[thermora] backend cells do not map to any study region - keeping sample data')
+    return null
+  }
+  return mapped
 }
 
 export async function getSummary(regionId: string, year: number): Promise<RegionSummary> {
@@ -192,7 +260,30 @@ export async function getProgress(t: Target): Promise<ProgressSummary> {
 
 /** Every day of a year (for the calendar heatmap). */
 export async function getDaily(t: Target, year: number): Promise<DailyPoint[]> {
-  return hybrid('daily', `/daily?year=${year}&${targetQs(t)}`, normDaily, () => mockDaily(t, year))
+  // The backend doesn't filter /daily by lat/lng yet (it would return worldwide totals): sample data for places.
+  if (t.kind === 'place') {
+    useDataStatus.getState().mark('daily', 'mock')
+    return mockDaily(t, year)
+  }
+  // Region: the backend filters by country name, so ask per country and add up the days.
+  await countryIndex()
+  const names = countryNamesOf(t.regionId)
+  const one = (q: string) => hybrid('daily', `/daily?year=${year}&region=${encodeURIComponent(q)}`, (x) => {
+    const d = normDaily(x); return d && d.length ? d : null
+  }, async () => [] as DailyPoint[])
+  const lists = await Promise.all([t.regionId, ...names].map(one))
+  const byDate = new Map<string, DailyPoint>()
+  for (const list of lists) for (const p of list) {
+    const e = byDate.get(p.date) ?? { date: p.date, legacy: 0, harmonized: 0 }
+    e.legacy += p.legacy; e.harmonized += p.harmonized
+    byDate.set(p.date, e)
+  }
+  if (!byDate.size) {
+    useDataStatus.getState().mark('daily', 'mock')
+    return mockDaily(t, year)
+  }
+  useDataStatus.getState().mark('daily', 'real')
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** One day's detail (for the day card and day-vs-day comparison). date = YYYY-MM-DD */
