@@ -3,6 +3,7 @@
  * in "Human vs natural" mode. Optional markers show an area's likelihood (legacy L, harmonized H).
  * Wording rule: a likelihood for an AREA, never a label on a single fire.
  */
+import { fmtHuman } from '../charts/stats'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
 
@@ -21,7 +22,7 @@ export function HumanScale({ markers = [], compact = false }: { markers?: Marker
     <div>
       <div className="relative">
         <div className={`${compact ? 'h-1.5' : 'h-2'} rounded-sm`} style={{ background: RAMP }} />
-        {markers.map((m) => (
+        {markers.filter((m) => Number.isFinite(m.value)).map((m) => (
           <div
             key={m.label}
             className="absolute -top-1 bottom-[-4px] w-0 transition-[left] duration-700"
@@ -38,10 +39,10 @@ export function HumanScale({ markers = [], compact = false }: { markers?: Marker
       </div>
       {!compact && markers.length > 1 && (
         <div className="mt-1 flex flex-wrap gap-x-4 text-[12px] text-dim">
-          {markers.map((m) => (
+          {markers.filter((m) => Number.isFinite(m.value)).map((m) => (
             <span key={m.label} className="inline-flex items-center gap-1.5">
               <span className={`inline-block h-3 w-0.5 rounded ${TONE[m.tone]}`} />
-              {m.label} <span className="font-mono text-text">{m.value.toFixed(2)}</span>
+              {m.label} <span className="font-mono text-text">{fmtHuman(m.value)}</span>
             </span>
           ))}
         </div>
@@ -66,7 +67,7 @@ export default function MapLegend({ className = '' }: { className?: string }) {
           <div className="label mb-1.5">Fire colour on the globe</div>
           <HumanScale compact />
           <p className="mt-1.5 text-[11.5px] leading-snug text-dim">
-            A likelihood for each area, from its weekly rhythm. Not a label on any single fire.
+            The average human score for each area, never a label on a single fire. Grey: no score.
           </p>
         </motion.div>
       )}

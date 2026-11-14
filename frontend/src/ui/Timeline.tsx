@@ -1,12 +1,22 @@
 /** OWNER: Agent B. B7 — year slider + ▶ play (steps `year` every 1.2s while `playing`). */
 import { useApp } from '../shared/store'
 import { YEARS } from '../shared/types'
+import { useDataStatus } from '../shared/dataStatus'
 
-const SPAN = YEARS.max - YEARS.min
-const at = (y: number) => `${((y - YEARS.min) / SPAN) * 100}%`
+const at = (y: number) => `${((y - YEARS.min) / Math.max(1, YEARS.max - YEARS.min)) * 100}%`
+/** year labels inside the backend's range (YEARS is narrowed from /api/meta) */
+const ticks = () => {
+  const span = YEARS.max - YEARS.min
+  const step = span <= 6 ? 1 : span <= 12 ? 2 : 5
+  const out: number[] = []
+  for (let y = YEARS.min; y <= YEARS.max; y += step) out.push(y)
+  if (out[out.length - 1] !== YEARS.max) out.push(YEARS.max)
+  return out
+}
 
 export default function Timeline({ compact = false }: { compact?: boolean }) {
   const year = useApp((s) => s.year)
+  useDataStatus((s) => s.regionsVersion) // re-render when the year range arrives
   const playing = useApp((s) => s.playing)
   const setYear = useApp((s) => s.setYear)
   const setPlaying = useApp((s) => s.setPlaying)
@@ -32,10 +42,12 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
 
       <div className="relative flex-1 pt-3.5 pb-3">
         {/* VIIRS-era shading: from 2012 both sensors overlap; before that the record is MODIS-only */}
-        <div className="pointer-events-none absolute top-[22px] right-0 h-1 rounded-r bg-cyan/25" style={{ left: at(2012) }} />
-        <div className="pointer-events-none absolute top-0 -translate-x-1/2 text-[11px] whitespace-nowrap text-cyan/80" style={{ left: at(2012) }}>
-          VIIRS era ▾
-        </div>
+        <div className="pointer-events-none absolute top-[22px] right-0 h-1 rounded-r bg-cyan/25" style={{ left: at(Math.max(2012, YEARS.min)) }} />
+        {YEARS.min < 2012 && (
+          <div className="pointer-events-none absolute top-0 -translate-x-1/2 text-[11px] whitespace-nowrap text-cyan/80" style={{ left: at(2012) }}>
+            VIIRS era ▾
+          </div>
+        )}
         <input
           type="range"
           min={YEARS.min}
@@ -52,7 +64,7 @@ export default function Timeline({ compact = false }: { compact?: boolean }) {
         />
         {!compact && (
           <div className="pointer-events-none absolute right-0 bottom-0 left-0 text-[11px] text-dim">
-            {[2001, 2005, 2010, 2015, 2020, 2025].map((y) => (
+            {ticks().map((y) => (
               <span key={y} className="absolute -translate-x-1/2" style={{ left: at(y) }}>
                 {y}
               </span>

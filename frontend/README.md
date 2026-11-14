@@ -22,7 +22,7 @@ Node 22 and nginx 1.27 are pinned in the `Dockerfile`; dependencies come from `p
 
 ## Notes
 
-- Uses mock data until `VITE_API_URL` points at the backend (a "MOCK DATA" badge is shown meanwhile).
+- Real data only: reads the team backend (`VITE_API_URL`, else the deployed URL). If the backend doesn't answer, the app says "Backend unreachable" and shows no numbers. There is no sample data.
 - Deploy on Vercel: import the repo, **Root Directory `frontend`** (settings come from `frontend/vercel.json`), **Production Branch `submain`**. Optional env var `VITE_API_URL` (defaults to the team backend).
 - Agents/teammates: read `CLAUDE.md`, `DESIGN.md` and `TASKS.md` first.
 

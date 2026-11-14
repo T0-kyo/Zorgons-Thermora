@@ -73,7 +73,8 @@ export interface RegionSummary {
   verdict: string
 }
 
-export const YEARS = { min: 2001, max: 2025 } as const
+/** year range on the slider; narrowed at startup to the years the backend has (GET /api/meta) */
+export const YEARS: { min: number; max: number } = { min: 2001, max: 2025 }
 
 // ---- places, calendar, progress (added for the place search + calendar features) ----
 

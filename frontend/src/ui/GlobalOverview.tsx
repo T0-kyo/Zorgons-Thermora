@@ -1,4 +1,5 @@
 /** OWNER: Agent B. B9/B12 — the global view: the question, the global number, ranked regions, tour. */
+import { fmtHuman } from '../charts/stats'
 import { useApp } from '../shared/store'
 import { REGIONS } from '../shared/regions'
 import { humanLabel } from '../charts/stats'
@@ -18,7 +19,7 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
   const ranked = totals
     ? REGIONS.map((r) => ({ r, t: totals.byRegion[r.id] }))
         .filter((x) => x.t)
-        .sort((a, b) => (human ? b.t.human - a.t.human : b.t.pct - a.t.pct))
+        .sort((a, b) => (human ? (Number.isFinite(b.t.human) ? b.t.human : -1) - (Number.isFinite(a.t.human) ? a.t.human : -1) : b.t.pct - a.t.pct))
     : []
   const max = human ? 1 : (ranked[0]?.t.pct ?? 1)
 
@@ -32,25 +33,27 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
       {!compact && (
         <p className="mt-3 max-w-[36ch] text-[15px] leading-relaxed text-dim">
           {human
-            ? 'Nature keeps no calendar. People do. Where fire follows the working week, people are likely behind it. Each area gets a likelihood, never a verdict on one fire.'
-            : 'MODIS has logged fires since 2000. VIIRS, flying since 2012, sees small fires MODIS cannot. We measure the gap, correct the long record, and show where it changes the story.'}
+            ? 'The science team scores each fire for its link to human activity. Each area shows the average score, never a verdict on one fire.'
+            : 'MODIS has logged fires since 2000. VIIRS, flying since 2012, sees small fires MODIS cannot. Combining both shows how many fires MODIS alone misses.'}
         </p>
       )}
 
       {totals && (
         <div className="mt-4 space-y-3">
-          {human ? (
-            <HumanHero value={totals.global.human} size="text-[38px]" />
+          {!totals.global ? (
+            <p className="text-sm text-warn">Worldwide totals are unavailable right now.</p>
+          ) : human ? (
+            <HumanHero value={totals.global!.human} size="text-[38px]" />
           ) : (
             <>
               <div className="flex items-end justify-between gap-3">
-                <HeroCount legacy={totals.global.legacy} harmonized={totals.global.harmonized} mode={mode} />
+                <HeroCount legacy={totals.global!.legacy} harmonized={totals.global!.harmonized} mode={mode} />
                 <div className="text-right">
                   <div className="label">Undercount</div>
-                  <CountUp value={totals.global.pct} format={(v) => `+${v.toFixed(1)}%`} className="readout block text-[34px] text-missed" />
+                  <CountUp value={totals.global!.pct} format={(v) => `+${v.toFixed(1)}%`} className="readout block text-[34px] text-missed" />
                 </div>
               </div>
-              <RecordBar legacy={totals.global.legacy} harmonized={totals.global.harmonized} mode={mode} />
+              <RecordBar legacy={totals.global!.legacy} harmonized={totals.global!.harmonized} mode={mode} />
             </>
           )}
 
@@ -79,7 +82,7 @@ export default function GlobalOverview({ compact = false }: { compact?: boolean 
                       }}
                     />
                   </span>
-                  <span className="w-12 text-right font-mono text-[13px] text-missed">{human ? v.toFixed(2) : `+${fmtPct(v, 0)}`}</span>
+                  <span className="w-12 text-right font-mono text-[13px] text-missed">{human ? fmtHuman(v) : `+${fmtPct(v, 0)}`}</span>
                 </button>
               )
             })}

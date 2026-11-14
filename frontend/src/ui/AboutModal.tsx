@@ -1,7 +1,6 @@
 /** OWNER: Agent B. B11 — About / Methods: sources, method summary, team, AI-use disclosure. */
 import { useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { anyMock, useDataStatus } from '../shared/dataStatus'
 import { useUi } from './uiStore'
 
 function Block({ title, children }: { title: string; children: React.ReactNode }) {
@@ -14,7 +13,6 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export default function AboutModal() {
-  const mockShown = anyMock(useDataStatus((st) => st.sources))
   const open = useUi((s) => s.aboutOpen)
   const setAbout = useUi((s) => s.setAbout)
 
@@ -63,11 +61,6 @@ export default function AboutModal() {
               they tell the same story? Which regions are most affected?
             </p>
 
-            {mockShown && (
-              <p className="rounded border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                Some or all numbers here are still sample data while the backend endpoints are being connected. Sample numbers are placeholders, not results.
-              </p>
-            )}
 
             <Block title="Data">
               <p>
@@ -88,19 +81,16 @@ export default function AboutModal() {
 
             <Block title="Method">
               <p>
-                <b>1. Vegetation fires only.</b> Static and non-vegetation sources (gas flares, industrial sites, power plants, volcanoes) are
-                removed before any comparison.
+                <b>1. One record per fire.</b> The engineering team matches MODIS and VIIRS detections into fire events. For each fire we keep
+                the MODIS detections (the legacy record) and all detections from both sensors (the harmonized record).
               </p>
               <p>
-                <b>2. Measure the gap.</b> Where both sensors overlap (2012 onward), we fit a region-aware MODIS to VIIRS correction and apply it
-                back to the MODIS-only years. The undercount is the % more fires in the harmonized record, with an uncertainty range.
+                <b>2. Measure the gap.</b> The undercount is the % more fires in the harmonized record than in the legacy one, for the chosen
+                country and year.
               </p>
               <p>
-                <b>3. Human or natural.</b> Nature has no 7-day rhythm. A weekday/weekend pattern in fire detections signals human activity;
-                we turn it into a 0–1 likelihood for each area, before and after correction. It describes an area, never a single fire.
-              </p>
-              <p>
-                <b>4. Trends.</b> Fire-regime trends are compared raw vs corrected, with uncertainty, to test whether the raw trend survives.
+                <b>3. Human or natural.</b> The science team gives each fire a 0–1 score for its association with human activity. We show the
+                average for each area, never a verdict on a single fire. Areas with no scored fires are shown in grey as "no score".
               </p>
             </Block>
 

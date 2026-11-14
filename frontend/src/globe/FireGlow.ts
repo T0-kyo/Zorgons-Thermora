@@ -32,7 +32,9 @@ const vertex = /* glsl */ `
   void main() {
     vHuman = aHuman;
     // spectrum filter: fires outside the chosen human-likelihood band fade to a faint trace
-    float inBand = step(uRange.x - 0.0001, aHuman) * step(aHuman, uRange.y + 0.0001);
+    // unscored areas (aHuman < 0) only count as "in band" when the whole range is selected
+    float full = step(uRange.x, 0.0001) * step(0.9999, uRange.y);
+    float inBand = aHuman < 0.0 ? full : step(uRange.x - 0.0001, aHuman) * step(aHuman, uRange.y + 0.0001);
     float bandK = mix(0.06, 1.0, inBand);
     float v = mix(aLeg, aHar, uMix);
     float val = mix(v, aDiff, uDiff);
@@ -70,7 +72,7 @@ const fragment = /* glsl */ `
     vec3 fire = mix(cFire, cHot, clamp(core * core * (0.2 + vI * 1.2), 0.0, 1.0));
     vec3 col = mix(fire, cMissed, uDiff);
     // human vs natural: cool ice = likely natural, hot magenta = likely human-driven
-    vec3 hn = mix(cNatural, cMissed, smoothstep(0.25, 0.85, vHuman));
+    vec3 hn = vHuman < 0.0 ? vec3(0.55, 0.55, 0.58) : mix(cNatural, cMissed, smoothstep(0.25, 0.85, vHuman));
     hn = mix(hn, vec3(1.0), core * core * 0.35);
     col = mix(col, hn, uHuman);
     float a = (core + halo) * clamp(0.12 + vI * 1.5, 0.0, 1.0) * vDim;
@@ -144,7 +146,7 @@ export class FireGlow {
         leg[k] = Math.sqrt(Math.min(1, c.legacy / scale.abs)) * share
         har[k] = Math.sqrt(Math.min(1, c.harmonized / scale.abs)) * share
         dif[k] = Math.sqrt(Math.min(1, Math.max(0, c.harmonized - c.legacy) / scale.diff)) * share
-        hum[k] = c.human ?? 0.5
+        hum[k] = c.human ?? -1
         if (pos && seed && reg) {
           const j = s === 0 ? 0 : 0.9
           const lat = c.lat + (rnd - 0.5) * j

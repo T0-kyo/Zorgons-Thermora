@@ -1,4 +1,5 @@
 /** OWNER: Agent B. B10 — phone bottom sheet: collapsed shows the headline, expanded shows everything. */
+import { fmtHuman } from '../charts/stats'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
@@ -19,12 +20,12 @@ function Peek() {
   const value = target
     ? p && p.covered
       ? human
-        ? p.humanLikelihood.harmonized.toFixed(2)
+        ? fmtHuman(p.humanLikelihood.harmonized)
         : `${p.changePct >= 0 ? '+' : '−'}${Math.abs(p.changePct).toFixed(0)}%`
       : null
-    : totals
+    : totals?.global
       ? human
-        ? totals.global.human.toFixed(2)
+        ? fmtHuman(totals.global.human)
         : `+${fmtPct(totals.global.pct)}`
       : null
   const caption = target ? (human ? 'Human likelihood' : 'Since 2001') : human ? 'Human likelihood' : 'Undercount'

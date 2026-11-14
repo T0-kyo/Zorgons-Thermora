@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../shared/store'
+import { useDataStatus } from '../shared/dataStatus'
 import { getCells } from '../shared/api'
 import type { FireCell } from '../shared/types'
 
@@ -45,19 +46,23 @@ export default function Spectrum({ compact = false }: { compact?: boolean }) {
   const setRange = useApp((s) => s.setHumanRange)
   const setMode = useApp((s) => s.setMode)
   const cells = useYearCells(year)
+  const cellsFailed = useDataStatus((st) => st.sources.cells === 'error')
   const track = useRef<HTMLDivElement>(null)
   const drag = useRef<0 | 1 | null>(null)
 
   const pool = useMemo(() => (regionId ? cells.filter((c) => c.regionId === regionId) : cells), [cells, regionId])
-  const { bins, max, total, inBand } = useMemo(() => {
+  const { bins, max, total, inBand, unscored } = useMemo(() => {
     const b = new Array(BINS).fill(0)
     let tot = 0, band = 0
+    let unscored = 0
+    const all = range[0] <= 0 && range[1] >= 1
     for (const c of pool) {
-      b[Math.min(BINS - 1, Math.floor(c.human * BINS))] += c.harmonized
       tot += c.harmonized
+      if (c.human < 0) { unscored += c.harmonized; if (all) band += c.harmonized; continue } // no score: not binned
+      b[Math.min(BINS - 1, Math.floor(c.human * BINS))] += c.harmonized
       if (c.human >= range[0] && c.human <= range[1]) band += c.harmonized
     }
-    return { bins: b, max: Math.max(1, ...b), total: tot, inBand: band }
+    return { bins: b, max: Math.max(1, ...b), total: tot, inBand: band, unscored }
   }, [pool, range])
 
   const engage = (r: [number, number]) => {
@@ -112,12 +117,19 @@ export default function Spectrum({ compact = false }: { compact?: boolean }) {
     <section aria-label="Human or natural filter" className={`select-none ${off ? 'opacity-60' : ''}`}>
       <div className="flex items-baseline justify-between gap-4">
         <div className="flex items-baseline gap-3">
-          <span className="spectrum-count readout text-text" style={{ fontSize: compact ? 18 : 26 }}>
-            {inBand.toLocaleString()}
-          </span>
-          <span className="text-[13px] text-dim">
-            fires in this band, {share}% of {regionId ? 'the country' : 'the world'} in {year}
-          </span>
+          {cellsFailed ? (
+            <span className="text-[13px] text-warn">Fire data for {year} is unavailable: the backend did not answer.</span>
+          ) : (
+            <>
+              <span className="spectrum-count readout text-text" style={{ fontSize: compact ? 18 : 26 }}>
+                {inBand.toLocaleString()}
+              </span>
+              <span className="text-[13px] text-dim">
+                fires in this band, {share}% of {regionId ? 'the country' : 'the world'} in {year}
+                {unscored > 0 && `, ${Math.round((unscored / total) * 100)}% have no score`}
+              </span>
+            </>
+          )}
         </div>
         {!compact && (
           <div className="flex gap-4 text-[13px]">
@@ -188,7 +200,7 @@ export default function Spectrum({ compact = false }: { compact?: boolean }) {
 
       <div className="mt-1.5 flex justify-between text-[12.5px]">
         <span style={{ color: ramp(0) }}>Likely natural</span>
-        {!compact && <span className="text-dim">Likelihood for each area, from its weekly rhythm. Never a verdict on one fire.</span>}
+        {!compact && <span className="text-dim">Average human score for each area, never a verdict on one fire.</span>}
         <span style={{ color: ramp(1) }}>Likely human-driven</span>
       </div>
     </section>

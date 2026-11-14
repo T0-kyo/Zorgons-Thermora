@@ -3,6 +3,7 @@
  * Hero follows the toggle: Legacy uses the legacy series, Harmonized the corrected one,
  * Human vs natural shows the area's human likelihood.
  */
+import { fmtHuman } from '../charts/stats'
 import { useApp } from '../shared/store'
 import type { Mode, ProgressSummary, Target } from '../shared/types'
 import Sparkline from '../charts/Sparkline'
@@ -131,7 +132,7 @@ export default function ProgressView({ target }: { target: Target }) {
         <div>
           <div className="mb-1 flex items-baseline justify-between">
             <span className="label">Human likelihood for this area</span>
-            <span className="font-mono text-[14px] text-missed">{p.humanLikelihood.harmonized.toFixed(2)}</span>
+            <span className="font-mono text-[14px] text-missed">{fmtHuman(p.humanLikelihood.harmonized)}</span>
           </div>
           <HumanScale
             compact

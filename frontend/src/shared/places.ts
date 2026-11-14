@@ -6,7 +6,7 @@
 import { geoContains } from 'd3-geo'
 import type { Place } from './types'
 import { REGIONS } from './regions'
-import { regionFeatures } from './mock'
+import { regionFeatures } from './geo'
 
 interface GazetteerEntry { name: string; country: string; lat: number; lng: number }
 

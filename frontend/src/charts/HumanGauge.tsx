@@ -1,4 +1,5 @@
 /** OWNER: Agent B. B4 — human-influence gauge: semicircle 0–1 with legacy and harmonized markers. */
+import { fmtHuman } from './stats'
 import { motion } from 'framer-motion'
 import { humanLabel } from './stats'
 import type { Mode } from '../shared/types'
@@ -37,7 +38,7 @@ export default function HumanGauge({ legacy, harmonized, mode }: { legacy: numbe
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} 124`} className="mx-auto block w-full max-w-[240px]" role="img" aria-label={`Human likelihood ${active.toFixed(2)}`}>
+      <svg viewBox={`0 0 ${W} 124`} className="mx-auto block w-full max-w-[240px]" role="img" aria-label={`Human likelihood ${fmtHuman(active)}`}>
         <path d={ARC} fill="none" stroke="var(--color-line)" strokeWidth={10} strokeLinecap="round" />
         <motion.path
           d={ARC}
@@ -78,20 +79,22 @@ export default function HumanGauge({ legacy, harmonized, mode }: { legacy: numbe
       </svg>
       <div className="-mt-1 flex items-end justify-between">
         <div>
-          <CountUp value={active} format={(v) => v.toFixed(2)} className="readout text-[28px]" />
+          {Number.isFinite(active) ? <CountUp value={active} format={(v) => v.toFixed(2)} className="readout text-[28px]" /> : <span className="readout text-[28px] text-dim">—</span>}
           <span className="ml-1.5 text-[12.5px] text-dim">human likelihood</span>
           <div className="text-[12.5px] text-dim">{humanLabel(active)}</div>
         </div>
         <div className="text-right">
           <div className="label">Legacy, then corrected</div>
           <div className="font-mono text-sm">
-            <span className="text-fire">{legacy.toFixed(2)}</span>
+            <span className="text-fire">{fmtHuman(legacy)}</span>
             <span className="text-dim">, </span>
-            <span className={mode === 'human' ? 'text-missed' : 'text-cyan'}>{harmonized.toFixed(2)}</span>
-            <span className="ml-1.5 text-dim">
-              ({shift >= 0 ? '+' : ''}
-              {shift.toFixed(2)})
-            </span>
+            <span className={mode === 'human' ? 'text-missed' : 'text-cyan'}>{fmtHuman(harmonized)}</span>
+            {Number.isFinite(shift) && (
+              <span className="ml-1.5 text-dim">
+                ({shift >= 0 ? '+' : ''}
+                {shift.toFixed(2)})
+              </span>
+            )}
           </div>
         </div>
       </div>

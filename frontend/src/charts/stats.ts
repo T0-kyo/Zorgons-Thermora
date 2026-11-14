@@ -24,7 +24,11 @@ export function weekendDip(counts: number[]) {
 
 /** Area-level wording (team rule): a likelihood for an area, never a label on a single fire. */
 export function humanLabel(v: number) {
+  if (!Number.isFinite(v)) return 'No human score for this area'
   if (v >= 0.66) return 'Likely human-driven'
   if (v >= 0.4) return 'Mixed human and natural'
   return 'Likely natural'
 }
+
+/** 0.62-style likelihood, or 'no score' when the backend has none for the area (never a made-up value) */
+export const fmtHuman = (v: number | undefined | null) => (v != null && Number.isFinite(v) ? v.toFixed(2) : 'no score')

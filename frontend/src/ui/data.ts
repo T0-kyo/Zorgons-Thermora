@@ -3,7 +3,8 @@
  * Results are cached per key so scrubbing years or flipping regions doesn't refetch.
  */
 import { useEffect, useState } from 'react'
-import { getCells, getDaily, getDay, getProgress, getSummary } from '../shared/api'
+import { getDaily, getDay, getGlobalSummary, getProgress, getSummary } from '../shared/api'
+import { REGIONS } from '../shared/regions'
 import type { DailyPoint, DayDetail, ProgressSummary, RegionSummary, Target } from '../shared/types'
 
 /** % more fires in the harmonized record than in the legacy one (same formula as the summary). */
@@ -52,37 +53,38 @@ export interface Totals {
   human: number
 }
 export interface YearTotals {
-  global: Totals
+  /** null when /api/summary did not answer */
+  global: Totals | null
   byRegion: Record<string, Totals>
 }
 
 const totalsCache = new Map<string, Promise<YearTotals>>()
 
-/** Global + per-region fire totals for a year, aggregated from getCells(year). */
+/**
+ * Global + per-country totals for a year, from the backend's summaries (every fire counted:
+ * /api/countries/{id}/summary per country and /api/summary for the world), not from the
+ * globe's grid, which the backend caps at the 3000 busiest squares.
+ * human = NaN when the backend has no score for that area (shown as "no score").
+ */
 export function fetchYearTotals(year: number) {
-  return cached(totalsCache, String(year), async () => {
-    const cells = await getCells(year, null)
+  return cached(totalsCache, `${year}:${REGIONS.map((r) => r.id).join('|')}`, async () => {
+    const toTotals = (s: RegionSummary): Totals => ({
+      legacy: s.firesLegacy, harmonized: s.firesHarmonized,
+      pct: undercountPct(s.firesLegacy, s.firesHarmonized), human: s.humanScore.harmonized,
+    })
+    // each figure stands alone: a failed call leaves only its own number blank
+    const [g, ...rows] = await Promise.all([
+      getGlobalSummary(year).catch(() => null),
+      ...REGIONS.map((r) => fetchSummary(r.id, year).catch(() => null)),
+    ])
     const byRegion: Record<string, Totals> = {}
-    let L = 0
-    let H = 0
-    let HW = 0
-    for (const c of cells) {
-      const t = (byRegion[c.regionId] ??= { legacy: 0, harmonized: 0, pct: 0, human: 0 })
-      const w = (c.human ?? 0) * c.harmonized
-      t.legacy += c.legacy
-      t.harmonized += c.harmonized
-      t.human += w // weighted sum for now, divided below
-      L += c.legacy
-      H += c.harmonized
-      HW += w
-    }
-    for (const t of Object.values(byRegion)) {
-      t.pct = undercountPct(t.legacy, t.harmonized)
-      t.human = t.harmonized ? t.human / t.harmonized : 0
-    }
-    return { global: { legacy: L, harmonized: H, pct: undercountPct(L, H), human: H ? HW / H : 0 }, byRegion }
+    REGIONS.forEach((r, i) => { const x = rows[i]; if (x) byRegion[r.id] = toTotals(x) })
+    if (!g && !Object.keys(byRegion).length) throw new Error('no summaries available')
+    return { global: g ? toTotals(g) : null, byRegion }
   })
 }
+
+export { fmtHuman } from '../charts/stats'
 
 export function useYearTotals(year: number) {
   const [data, setData] = useState<YearTotals | null>(null)

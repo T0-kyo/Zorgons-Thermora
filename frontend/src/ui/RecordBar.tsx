@@ -54,7 +54,7 @@ export function HumanHero({ value, legacy, size = 'text-[40px]' }: { value: numb
     <div>
       <div className="label">Human likelihood for this area</div>
       <div className="flex items-baseline gap-3">
-        <CountUp value={value} format={(v) => v.toFixed(2)} className={`readout ${size} text-missed`} />
+        {Number.isFinite(value) ? <CountUp value={value} format={(v) => v.toFixed(2)} className={`readout ${size} text-missed`} /> : <span className={`readout ${size} text-dim`}>—</span>}
         <span className="text-[15px]">{humanLabel(value)}</span>
       </div>
       <div className="mt-3">

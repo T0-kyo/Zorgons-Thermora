@@ -1,107 +1,121 @@
 /**
  * OWNER: Agent B. B8/B20 — ~60s guided tour (used for the demo video), incl. Human vs natural steps.
  * It only drives the shared store (region / mode / year); the globe flies on its own.
- * Any click, tap or Esc stops it. Captions pull live numbers from api.ts.
+ * Any click, tap or Esc stops it. Countries are chosen from the data and every caption figure comes
+ * from the backend; a step with no data is skipped.
  */
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
-import { regionByCode, regionById } from '../shared/regions'
+import { regionById } from '../shared/regions'
 import { fetchSummary, fetchYearTotals } from './data'
 import { dataYears } from '../shared/api'
-import { humanLabel, weekendDip } from '../charts/stats'
+import { fmtHuman, humanLabel, weekendDip } from '../charts/stats'
 
-/** the tour's year: 2019 on sample data, else the latest year the backend has */
-const tourYear = () => (dataYears && (2019 < dataYears.min || 2019 > dataYears.max) ? dataYears.max : 2019)
+/** the tour's year: the latest year the backend has */
+const tourYear = () => dataYears?.max ?? app().year
 type Ctx = { year: number }
 interface Step {
   ms: number
-  go?: () => void
-  text: string | ((c: Ctx) => Promise<string>)
+  /** may pick its country from the data; returns the caption ('' = skip step) */
+  run: (c: Ctx) => Promise<string>
 }
 
 const app = () => useApp.getState()
 type TourMode = 'legacy' | 'harmonized' | 'human'
-/** countries are resolved by ISO code at run time (ids come from the backend's country list) */
-const cid = (code: string) => regionByCode(code)?.id ?? null
-const focus = (code: string | null, mode: TourMode) => () => {
-  app().selectRegion(code ? cid(code) : null)
+const focus = (id: string | null, mode: TourMode) => {
+  app().selectRegion(id)
   app().setMode(mode)
 }
 const pct = (v: number) => `${v.toFixed(0)}%`
-/** Area likelihoods come from the same source as the panels (cells weighted by fires). */
-const likelihood = async (year: number, id: string) => (await fetchYearTotals(year)).byRegion[id]?.human ?? 0
+const fires = (n: number) => Math.round(n).toLocaleString()
 
-/** First of these ISO codes that the current country list has (backend list or default). */
-const pick = (...codes: string[]) => codes.find((c) => regionByCode(c)) ?? null
-const nameOf = (code: string | null) => (code ? (regionByCode(code)?.name ?? code) : '')
+/** Countries ranked by the backend's own numbers for the year (only those with data and a score). */
+async function ranked(year: number) {
+  const t = await fetchYearTotals(year)
+  const rows = Object.entries(t.byRegion)
+    .map(([id, v]) => ({ id, name: regionById(id)?.name ?? id, ...v }))
+    .filter((r) => r.harmonized > 0)
+  const scored = rows.filter((r) => Number.isFinite(r.human))
+  const by = <T,>(a: T[], f: (x: T) => number) => [...a].sort((x, y) => f(y) - f(x))
+  return {
+    totals: t,
+    mostHuman: by(scored, (r) => r.human)[0] ?? null,
+    mostNatural: by(scored, (r) => -r.human)[0] ?? null,
+    biggest: by(rows, (r) => r.harmonized)[0] ?? null,
+    widestGap: by(rows, (r) => r.pct)[0] ?? null,
+  }
+}
 
-// Countries for the story, chosen from what the backend serves (fallbacks for the sample list).
-const BURN = () => pick('CHN', 'IND', 'AGO')         // crop / savanna burning: strong human signal
-const LOCAL = () => pick('EGY')                      // Nile Delta rice straw: the local story
-const WILD = () => pick('USA', 'GRC', 'CAN', 'AUS')  // wildfires: more natural
-const BIG = () => pick('AGO', 'COD', 'BRA')          // largest fire load
-
-const humanCaption = async (code: string | null, year: number, intro: string) => {
-  if (!code) return intro
-  const id = cid(code) ?? ''
-  const [s, h] = await Promise.all([fetchSummary(id, year), likelihood(year, id)])
+/** caption for one country, every figure from the backend */
+async function countryCaption(id: string, name: string, year: number, h: number) {
+  const s = await fetchSummary(id, year)
   const dip = weekendDip(s.weekdayCounts)
-  const rhythm = Math.abs(dip) >= 3 ? ` Fires change ${dip > 0 ? '+' : ''}${dip.toFixed(0)}% at weekends.` : ' Little weekly rhythm.'
-  return `${nameOf(code)}: ${intro} ${humanLabel(h)}, human likelihood ${h.toFixed(2)}.${rhythm}`
+  const rhythm = Math.abs(dip) >= 3 ? ` Fires change ${dip > 0 ? '+' : ''}${dip.toFixed(0)}% at weekends.` : ''
+  return `${name}, ${year}: ${humanLabel(h).toLowerCase()}, human likelihood ${fmtHuman(h)}, from ${fires(s.firesHarmonized)} fires.${rhythm}`
 }
 
 const STEPS: Step[] = [
   {
     ms: 6500,
-    go: focus(null, 'harmonized'),
-    text: async ({ year }) => {
-      const t = await fetchYearTotals(year)
-      return `Harmonized with VIIRS, which sees small fires MODIS cannot, the record grows by ${pct(t.global.pct)}.`
+    run: async ({ year }) => {
+      focus(null, 'harmonized')
+      const t = (await fetchYearTotals(year)).global
+      if (!t) return ''
+      return `${year}: combining MODIS with VIIRS finds ${fires(t.harmonized)} fires, ${pct(t.pct)} more than MODIS alone (${fires(t.legacy)}).`
     },
   },
   {
     ms: 7000,
-    go: focus(null, 'human'),
-    text: 'Now: human or natural? Magenta areas are likely human-driven, ice blue likely natural. Nature has no weekends; people do.',
+    run: async () => {
+      focus(null, 'human')
+      return 'Human or natural? Magenta areas score as likely human-driven, ice blue as likely natural, grey has no score.'
+    },
   },
   {
-    ms: 6500,
-    go: () => focus(BURN(), 'harmonized')(),
-    text: async ({ year }) => {
-      const code = BURN(); if (!code) return 'Small agricultural fires are the ones the old record misses most.'
-      const s = await fetchSummary(cid(code) ?? '', year)
-      return `${nameOf(code)}: many small fires. The legacy record undercounts them by ${pct(s.undercountPct)}.`
+    ms: 7000,
+    run: async ({ year }) => {
+      const r = (await ranked(year)).widestGap
+      if (!r) return ''
+      focus(r.id, 'harmonized')
+      return `${r.name}: the legacy record misses the most here, ${pct(r.pct)} (${fires(r.legacy)} MODIS vs ${fires(r.harmonized)} harmonized).`
     },
   },
   {
     ms: 7500,
-    go: () => focus(BURN(), 'human')(),
-    text: ({ year }) => humanCaption(BURN(), year, 'agricultural burning.'),
-  },
-  {
-    ms: 7500,
-    go: () => focus(LOCAL(), 'human')(),
-    text: ({ year }) => humanCaption(LOCAL(), year, 'rice-straw burning in the Nile Delta.'),
-  },
-  {
-    ms: 7500,
-    go: () => focus(WILD(), 'human')(),
-    text: ({ year }) => humanCaption(WILD(), year, 'wildfire country.'),
-  },
-  {
-    ms: 7500,
-    go: () => focus(BIG(), 'harmonized')(),
-    text: async ({ year }) => {
-      const code = BIG(); if (!code) return 'The corrected record changes the picture most where fires are small and frequent.'
-      const s = await fetchSummary(cid(code) ?? '', year)
-      return `${nameOf(code)} is among the most fire-active countries on Earth. The legacy record undercounts it by ${pct(s.undercountPct)}.`
+    run: async ({ year }) => {
+      const r = (await ranked(year)).mostHuman
+      if (!r) return ''
+      const text = await countryCaption(r.id, r.name, year, r.human)
+      focus(r.id, 'human') // move the globe and change the caption together
+      return text
     },
   },
   {
-    ms: 8000,
-    go: focus(null, 'human'),
-    text: 'The harmonized record counts the small fires the old one missed, and shows where fire is likely human-driven or natural. Search any place to explore.',
+    ms: 7500,
+    run: async ({ year }) => {
+      const r = (await ranked(year)).mostNatural
+      if (!r) return ''
+      const text = await countryCaption(r.id, r.name, year, r.human)
+      focus(r.id, 'human') // move the globe and change the caption together
+      return text
+    },
+  },
+  {
+    ms: 7500,
+    run: async ({ year }) => {
+      const r = (await ranked(year)).biggest
+      if (!r) return ''
+      focus(r.id, 'harmonized')
+      return `${r.name} has the most fires in ${year}: ${fires(r.harmonized)} in the harmonized record.`
+    },
+  },
+  {
+    ms: 7000,
+    run: async () => {
+      focus(null, 'human')
+      return 'Pick a country, or search any place, to explore its fires.'
+    },
   },
 ]
 
@@ -120,15 +134,15 @@ export default function Tour() {
       for (let i = 0; i < STEPS.length; i++) {
         if (cancelled) return
         const step = STEPS[i]
-        step.go?.()
         let text: string
         try {
-          text = typeof step.text === 'string' ? step.text : await step.text({ year: tourYear() })
+          text = await step.run({ year: tourYear() })
         } catch {
-          text = ''
+          text = '' // no data for this step: skip it rather than show anything made up
         }
         if (cancelled) return
-        if (text) setCap({ i, text })
+        if (!text) continue
+        setCap({ i, text })
         await sleep(step.ms)
       }
       if (!cancelled) app().stopTour()

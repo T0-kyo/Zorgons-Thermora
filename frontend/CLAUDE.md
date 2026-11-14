@@ -17,7 +17,7 @@ They cannot talk to each other directly. **This file and `TASKS.md` are how they
 |---|---|
 | `src/globe/**` | Agent A |
 | `src/ui/**`, `src/charts/**` | Agent B |
-| `src/shared/**` (types, store, api, mock, regions) | Shared contract — see below |
+| `src/shared/**` (types, store, api, geo, regions) | Shared contract — see below |
 | `src/App.tsx` (layout slots), `src/index.css` (design tokens) | Agent B may restyle/re-layout; keep the `<GlobeView/>` full-screen slot |
 | `public/textures/**` | Agent A |
 | `CLAUDE.md`, `TASKS.md` | Both (append, don't rewrite the other agent's lines) |
@@ -28,7 +28,7 @@ If you need something in the other agent's area, **don't change it — add a req
 - Components get data **only** through `src/shared/api.ts` (`getRegions`, `getCells`, `getSummary`). Never `fetch()` in components.
 - Global state lives **only** in `src/shared/store.ts` (`useApp`): `regionId`, `mode`, `year`, `playing`, `touring`.
 - You may **add** fields/actions/types. **Renaming or removing** anything requires a line in `TASKS.md → Contract changes` and must not break the other agent's build.
-- Mock data is served until `VITE_API_URL` is set. The UI must keep showing the "MOCK DATA" badge while `USING_MOCK` is true — never present mock numbers as real results.
+- **Real data only.** There is no sample, mock or placeholder data anywhere. Every number comes from the backend (`VITE_API_URL`, else the team's deployed URL). If a call fails, show "unavailable" and nothing in its place. A missing human score is shown as "no score" (grey on the globe), never as an invented value. Never add written claims about a country that don't come from the data.
 
 ## Git
 - **`main` is off-limits.** Never commit, push, merge, rebase onto, or open a PR into `main` — and never suggest doing so. It is only touched when the humans explicitly say so.

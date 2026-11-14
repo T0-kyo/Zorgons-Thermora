@@ -1,10 +1,12 @@
 /** OWNER: Agent B. B2 — region picker; the right column follows the toggle (undercount, or human likelihood). Phone chips (B10). */
+import { fmtHuman } from '../charts/stats'
 import { useApp } from '../shared/store'
 import { REGIONS } from '../shared/regions'
+import { useDataStatus } from '../shared/dataStatus'
 import { fmtPct, useYearTotals, type Totals } from './data'
 
-const valueOf = (t: Totals | undefined, human: boolean) => (t ? (human ? t.human : t.pct) : 0)
-const fmtValue = (t: Totals | undefined, human: boolean) => (!t ? '' : human ? t.human.toFixed(2) : `+${fmtPct(t.pct, 0)}`)
+const valueOf = (t: Totals | undefined, human: boolean) => (t ? (human ? (Number.isFinite(t.human) ? t.human : 0) : t.pct) : 0)
+const fmtValue = (t: Totals | undefined, human: boolean) => (!t ? '' : human ? fmtHuman(t.human) : `+${fmtPct(t.pct, 0)}`)
 
 function MiniBar({ v, max, human }: { v: number; max: number; human: boolean }) {
   return (
@@ -22,6 +24,8 @@ function MiniBar({ v, max, human }: { v: number; max: number; human: boolean }) 
 }
 
 export default function RegionList() {
+  const regionsState = useDataStatus((s) => (s.backend === 'down' ? 'error' : s.sources.regions))
+  useDataStatus((s) => s.regionsVersion) // re-render when the backend's list arrives
   const regionId = useApp((s) => s.regionId)
   const place = useApp((s) => s.place)
   const year = useApp((s) => s.year)
@@ -50,9 +54,14 @@ export default function RegionList() {
         }`}
       >
         <span>◎ Global view</span>
-        {totals && <span className="font-mono text-[13px]">{fmtValue(totals.global, human)}</span>}
+        {totals && <span className="font-mono text-[13px]">{fmtValue(totals.global ?? undefined, human)}</span>}
       </button>
       <div className="min-h-0 overflow-y-auto">
+        {REGIONS.length === 0 && (
+          <p className="px-2 py-1.5 text-[13px] text-dim">
+            {regionsState === 'error' ? 'Countries are unavailable: the backend did not answer.' : 'Loading countries…'}
+          </p>
+        )}
         {REGIONS.map((r) => {
           const t = totals?.byRegion[r.id]
           const active = regionId === r.id

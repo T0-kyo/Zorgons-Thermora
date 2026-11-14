@@ -2,7 +2,7 @@
 
 **Read first: `BACKEND_WANTS.md` (what each endpoint powers, and priorities).**
 
-**Status:** the frontend calls **`https://zorgons-thermora-776b3.containers.snapdeploy.app`** (checks `GET /health` at startup). It runs in **hybrid mode**: each endpoint below is used as soon as it answers with the right shape; anything missing (return **404**), failing or malformed falls back to sample data, and the on-screen badge says so. **Ship endpoints one at a time. No frontend change is needed.** Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
+**Status:** the frontend calls **`https://zorgons-thermora-776b3.containers.snapdeploy.app`** (checks `GET /health` at startup). It shows **real data only**: there is no sample-data fallback. A failing or malformed endpoint shows "unavailable" in its place and the badge reads "Backend unreachable". A human score of 0.0 (no scored fires) is shown as "no score". Source of truth on our side: `frontend/src/shared/types.ts` and `frontend/src/shared/api.ts`.
 
 Backend team: the **decisions in section 1** block us. Please answer them at the bottom of this file or tell us directly.
 
@@ -26,12 +26,12 @@ The backend's controller (`Backend/api/Controllers/DataController.cs`) has every
 
 **Update Sat 10:15 (checked the `backend` branch):** cells, daily, countries and meta are implemented. The frontend now:
 - fetches `/api/cells?year=` for the whole year once and maps **country names → our regions** (Natural Earth names), so `regionId` can stay a country name;
-- **refuses cells whose `human` is all 0** (placeholder), keeping sample data until real likelihoods arrive;
-- builds region calendars from **`/api/daily?region=<country>` per country** and adds them up; clicked places use sample data until `/daily` filters by lat/lng.
+- shows cells whose `human` is 0.0 as **no score** (grey), never as "natural";
+- reads calendars from **`/api/daily?region=<country>`** for countries and **`/api/daily?lat=&lng=&radiusKm=`** for searched places; the country menu uses **`/api/countries/{id}/summary`** and **`/api/summary`** (every fire counted, not the 3000-cell grid).
 
 Backend fixes still needed: real `human` values; a coarser grid + `ORDER BY Harmonized DESC` before `LIMIT 3000`; **SQL parameters instead of string interpolation (injection)**; lat/lng filtering; caching the Parquet in memory.
 
-**What is still needed (original note):** `DuckDbRepository` returns `{ "message": "... coming soon" }` for every endpoint. Until it returns real rows, the app shows sample data and the "Sample data" badge. As soon as an endpoint returns real data, that part of the app switches to it automatically.
+
 
 ## 0. At a glance
 
@@ -260,9 +260,9 @@ Places (arbitrary lat/lng) can't be precomputed. In Plan B we compute place prog
 
 ## 7. How to check you match
 
-1. Open the app, open the browser console, run `await window.__thermoraApi.getSummary('amazon', 2019)`. That's the exact shape our mock returns. Compare it with your response.
+1. Open the app, open the browser console, run `await window.__thermoraApi.getSummary('amazon', 2019)`. It returns the summary in the frontend's shape after normalising your response.
 2. Run the frontend against your API: `cd frontend && VITE_API_URL=http://localhost:5042 npm run dev`
-3. While mock data is active, the UI shows "Sample data, not results". It disappears with a real API.
+3. If an endpoint fails, the UI shows "Backend unreachable" and leaves that part empty.
 
 ---
 

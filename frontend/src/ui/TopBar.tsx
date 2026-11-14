@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useApp } from '../shared/store'
-import { anyMock, useDataStatus } from '../shared/dataStatus'
+import { anyFailed, useDataStatus } from '../shared/dataStatus'
 import { sunPosition } from '../shared/sun'
 import type { Mode } from '../shared/types'
 import { useUi } from './uiStore'
@@ -75,27 +75,23 @@ export function UtcClock() {
   )
 }
 
-/** Honest data-source badge: sample, partly sample, or live (driven by the hybrid API layer). */
+/** Data badge: live, connecting, or unreachable. There is no sample data to fall back to. */
 export function MockBadge() {
   const backend = useDataStatus((s) => s.backend)
   const sources = useDataStatus((s) => s.sources)
-  const mock = anyMock(sources)
-  const real = Object.values(sources).filter((v) => v === 'real').length
-  if (!mock) {
+  if (backend === 'down' || anyFailed(sources)) {
     return (
-      <span title="All numbers on screen come from the team's backend" className="rounded border border-ok/40 bg-ok/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-ok">
-        Live data
+      <span title="The backend did not answer. Nothing is shown in place of its data." className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn">
+        Backend unreachable
       </span>
     )
   }
-  const partly = backend === 'up' && real > 0
-  const title =
-    backend === 'down' ? 'The backend is unreachable, so all numbers are placeholders'
-    : backend === 'up' ? 'Backend connected. Endpoints that are not ready yet still show sample data'
-    : 'Numbers are placeholders until the backend is connected'
+  if (backend !== 'up' || !Object.values(sources).includes('real')) {
+    return <span className="rounded border border-line px-2 py-0.5 text-[12px] whitespace-nowrap text-dim">Connecting to data…</span>
+  }
   return (
-    <span title={title} className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-warn">
-      {partly ? 'Partly sample data' : 'Sample data, not results'}
+    <span title="All numbers on screen come from the team's backend" className="rounded border border-ok/40 bg-ok/10 px-2 py-0.5 text-[12px] whitespace-nowrap text-ok">
+      Live data
     </span>
   )
 }

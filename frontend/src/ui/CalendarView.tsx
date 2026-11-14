@@ -3,6 +3,7 @@
  * Month grid (Mon-first), each day shaded by fires (fire ramp; follows the Legacy/Harmonized toggle),
  * month + year navigation (year is the app year), arrow keys move between days, Enter selects.
  */
+import { fmtHuman } from '../charts/stats'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useApp } from '../shared/store'
@@ -107,7 +108,7 @@ function DayCard({ target, date }: { target: Target; date: string }) {
             <div>
               <dt className="label">Human likelihood, area</dt>
               <dd>
-                <span className="font-mono text-missed">{d.humanLikelihood.toFixed(2)}</span>{' '}
+                <span className="font-mono text-missed">{fmtHuman(d.humanLikelihood)}</span>{' '}
                 <span className="text-dim">{humanLabel(d.humanLikelihood)}</span>
               </dd>
             </div>
