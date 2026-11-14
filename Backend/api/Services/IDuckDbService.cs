@@ -1,11 +1,11 @@
-using System.Data;
+using System.Data.Common;
 
 
 namespace api.Services;
 
 public interface IDuckDbService
 {
-    IDbConnection CreateConnection();
+    DbConnection CreateConnection();
     string GetEngineerUrl();
     string GetScientistUrl();
 }
