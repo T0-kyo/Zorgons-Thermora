@@ -12,10 +12,25 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<DataSettings>(
     builder.Configuration.GetSection(DataSettings.SectionName));
 
+// one shared DuckDB database + a country list read from the dataset itself
 builder.Services.AddSingleton<IDuckDbService, DuckDbService>();
+builder.Services.AddSingleton<ICountryCatalog, CountryCatalog>();
+builder.Services.AddSingleton<QueryCache>();
+builder.Services.AddSingleton<CountryStatsStore>();
 builder.Services.AddScoped<IDataRepository, DuckDbRepository>();
+builder.Services.AddHostedService<WarmupService>();
+builder.Services.AddHttpClient("dataset", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("thermora-api/1.0");
+    var token = builder.Configuration[$"{DataSettings.SectionName}:HfToken"];
+    if (!string.IsNullOrWhiteSpace(token))
+        c.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+});
 
-builder.Services.AddMemoryCache();
+// size-limited: every cached response counts as 1 entry
+var cacheEntries = builder.Configuration.GetValue<int?>($"{DataSettings.SectionName}:CacheEntries") ?? 2000;
+builder.Services.AddMemoryCache(o => o.SizeLimit = cacheEntries);
 
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
