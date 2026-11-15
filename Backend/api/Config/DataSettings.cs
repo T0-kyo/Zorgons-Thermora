@@ -31,8 +31,11 @@ public class DataSettings
     public int CacheMinutes { get; set; } = 30;
     /// <summary>Most cached responses kept at once (each response counts as 1).</summary>
     public int CacheEntries { get; set; } = 2000;
-    /// <summary>How often the country list / file availability is re-read from the dataset.</summary>
-    public int CatalogRefreshMinutes { get; set; } = 60;
+    /// <summary>
+    /// How often the dataset is checked for new / replaced / removed files. A check is one small
+    /// request (the dataset's current commit); the list is only re-read when that changed.
+    /// </summary>
+    public int CatalogRefreshSeconds { get; set; } = 300;
 
     // ---- API shape ------------------------------------------------------------------------------
     /// <summary>Most globe cells returned by /api/cells.</summary>

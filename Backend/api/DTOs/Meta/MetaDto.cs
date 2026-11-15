@@ -12,5 +12,8 @@ public record MetaDto(
     int? FirstFullYear = null,
     int? LastFullYear = null,
     int Countries = 0,
-    int ScoredCountries = 0
+    int ScoredCountries = 0,
+    string? DatasetVersion = null,
+    string? CheckedUtc = null,
+    IReadOnlyList<string>? SkippedFiles = null
 );

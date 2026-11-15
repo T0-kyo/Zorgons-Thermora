@@ -45,7 +45,7 @@ public class DuckDbRepository : IDataRepository
         var countries = string.IsNullOrWhiteSpace(regionId) ? snap.Countries : [await _catalog.ResolveAsync(regionId)];
         var scope = Scope.ForYear(snap, countries, year);
 
-        return await _cache.GetOrCreateAsync($"cells:{year}:{Key(countries, snap)}", async () =>
+        return await _cache.GetOrCreateAsync($"cells:{snap.Version}:{year}:{Key(countries, snap)}", async () =>
         {
             var sql = With(scope, science: true) + @",
                 g AS (SELECT round(latitude * 2) / 2 AS lat, round(longitude * 2) / 2 AS lng,
@@ -91,7 +91,7 @@ public class DuckDbRepository : IDataRepository
         var snap = await _catalog.GetAsync();
         var country = await _catalog.ResolveAsync(id);
         int y = year ?? snap.LastFullYear;
-        return await _cache.GetOrCreateAsync($"summary:{country.Id}:{y}", async () =>
+        return await _cache.GetOrCreateAsync($"summary:{snap.Version}:{country.Id}:{y}", async () =>
         {
             var s = await SummaryAsync(Scope.ForYear(snap, [country], y));
             return s with { Trend = snap.TrendFor(country), RegionId = country.Id, Year = y, HasScores = snap.HasScores(country) };
@@ -102,7 +102,7 @@ public class DuckDbRepository : IDataRepository
     {
         var snap = await _catalog.GetAsync();
         int y = year ?? snap.LastFullYear;
-        return await _cache.GetOrCreateAsync($"summary:*:{y}:{Key(snap.Countries, snap)}", async () =>
+        return await _cache.GetOrCreateAsync($"summary:{snap.Version}:*:{y}", async () =>
         {
             var s = await SummaryAsync(Scope.ForYear(snap, snap.Countries, y));
             return s with { Year = y, HasScores = snap.Scored.Any() };
@@ -117,7 +117,7 @@ public class DuckDbRepository : IDataRepository
         int first = snap.FirstFullYear, last = snap.LastFullYear;
         var scope = Scope.ForDates(snap, target.Countries, new DateOnly(first, 1, 1), new DateOnly(last + 1, 1, 1)).WithPlace(target.Place);
 
-        return await _cache.GetOrCreateAsync($"progress:{target.Key}", async () =>
+        return await _cache.GetOrCreateAsync($"progress:{snap.Version}:{target.Key}", async () =>
         {
             var sql = With(scope, science: true) + @"
             SELECT year(date) AS y,
@@ -179,7 +179,7 @@ public class DuckDbRepository : IDataRepository
         var target = await TargetAsync(snap, region, lat, lng, radiusKm);
         if (target.Countries.Count == 0) return [];
         var scope = Scope.ForYear(snap, target.Countries, year).WithPlace(target.Place);
-        return await _cache.GetOrCreateAsync($"daily:{year}:{target.Key}", async () =>
+        return await _cache.GetOrCreateAsync($"daily:{snap.Version}:{year}:{target.Key}", async () =>
         {
             var sql = With(scope, science: false) + @"
             SELECT strftime(date, '%Y-%m-%d') AS d, count(*) FILTER (WHERE modis) AS legacy, count(*) AS harmonized
@@ -197,7 +197,7 @@ public class DuckDbRepository : IDataRepository
         var iso = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         if (target.Countries.Count == 0) return new DailyDto(iso, 0, 0);
         var scope = Scope.ForDates(snap, target.Countries, date, date.AddDays(1)).WithPlace(target.Place);
-        return await _cache.GetOrCreateAsync($"day:{iso}:{target.Key}", async () =>
+        return await _cache.GetOrCreateAsync($"day:{snap.Version}:{iso}:{target.Key}", async () =>
         {
             var sql = With(scope, science: false) + @"
             SELECT count(*) FILTER (WHERE modis) AS legacy, count(*) AS harmonized FROM e";
@@ -212,7 +212,7 @@ public class DuckDbRepository : IDataRepository
         var snap = await _catalog.GetAsync();
         return snap.Countries.Select(c =>
         {
-            _stats.TryGet(c.Id, out var st);
+            _stats.TryGet(c.StatsKey, out var st);
             return new CountryDto(c.Id, c.Name, st?.UndercountPct, st?.HumanScore, st?.Confidence,
                 c.Iso3, snap.HasScores(c), c.FirstDate?.ToString("yyyy-MM-dd"), c.LastDate?.ToString("yyyy-MM-dd"));
         }).ToList();
@@ -228,7 +228,10 @@ public class DuckDbRepository : IDataRepository
             FirstFullYear: snap.FirstFullYear == 0 ? null : snap.FirstFullYear,
             LastFullYear: snap.LastFullYear == 0 ? null : snap.LastFullYear,
             Countries: snap.Countries.Count,
-            ScoredCountries: snap.Scored.Count());
+            ScoredCountries: snap.Scored.Count(),
+            DatasetVersion: snap.Version,
+            CheckedUtc: _catalog.LastCheckedUtc.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture),
+            SkippedFiles: snap.Skipped);
     }
 
     public async Task<CountryStats> ComputeCountryStatsAsync(string id)
@@ -291,7 +294,7 @@ public class DuckDbRepository : IDataRepository
                 FROM (SELECT fire_id, latitude, longitude, date, modis_detections, n_detections,
                              regexp_extract(filename, '([^/\\]+)\.parquet$', 1) AS region
                       FROM read_parquet({files}, union_by_name = true, filename = true)
-                      WHERE fire_type = 0 {scope.Where})
+                      WHERE {VegetationFilter(scope.Countries)} {scope.Where})
                 GROUP BY fire_id
             )");
         if (!science) return sb.ToString();
@@ -322,6 +325,12 @@ public class DuckDbRepository : IDataRepository
             f AS (SELECT e.*, s.score, s.lo, s.hi, s.conf FROM e LEFT JOIN s USING (fire_id))");
         return sb.ToString();
     }
+
+    /// <summary>fire_type 0 = vegetation. A file uploaded without fire_type keeps all its fires (NULL after union_by_name).</summary>
+    private static string VegetationFilter(IReadOnlyList<CountryInfo> countries) =>
+        countries.All(c => c.HasFireType) ? "fire_type = 0"
+        : countries.Any(c => c.HasFireType) ? "coalesce(fire_type, 0) = 0"
+        : "true";
 
     private async Task QueryAsync(string sql, IReadOnlyList<object> parameters, Action<DbDataReader> row)
     {
@@ -354,7 +363,7 @@ public class DuckDbRepository : IDataRepository
     }
 
     private static string Key(IReadOnlyList<CountryInfo> countries, CatalogSnapshot snap) =>
-        countries.Count == snap.Countries.Count ? $"all{snap.Countries.Count}:{snap.LoadedUtc.Ticks}" : string.Join(",", countries.Select(c => c.Id));
+        countries.Count == snap.Countries.Count ? "all" : string.Join(",", countries.Select(c => c.Id));
 
     private static ProgressDto EmptyProgress(CatalogSnapshot snap) =>
         new(new List<ProgressSeriesDto>(), 0, 0, 0, "stable",

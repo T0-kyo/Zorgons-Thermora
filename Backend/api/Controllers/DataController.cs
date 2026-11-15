@@ -71,6 +71,23 @@ public class DataController : ControllerBase
     [HttpGet("meta")]
     public async Task<IActionResult> GetMeta() => Ok(await _repo.GetMetaAsync());
 
+    private static long _lastManualRefresh;
+
+    /// <summary>
+    /// Check the dataset now (after uploading a country to Hugging Face) instead of waiting for the
+    /// periodic check. Cheap when nothing changed; at most one manual check every 10 s.
+    /// </summary>
+    [HttpPost("catalog/refresh")]
+    public async Task<IActionResult> RefreshCatalog([FromServices] Services.ICountryCatalog catalog)
+    {
+        var now = DateTime.UtcNow.Ticks;
+        var last = Interlocked.Read(ref _lastManualRefresh);
+        if (now - last < TimeSpan.FromSeconds(10).Ticks || Interlocked.CompareExchange(ref _lastManualRefresh, now, last) != last)
+            return StatusCode(429, new { title = "Refreshed less than 10 s ago; try again shortly." });
+        await catalog.RefreshAsync(HttpContext.RequestAborted);
+        return Ok(await _repo.GetMetaAsync());
+    }
+
     private static void CheckYear(int year)
     {
         if (year < 2000 || year > 2100)

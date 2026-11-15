@@ -34,25 +34,33 @@ public sealed class WarmupService : BackgroundService
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(1), stop);
-            var snap = await _catalog.GetAsync(stop);
+            await _catalog.GetAsync(stop);
             if (!_settings.PrecomputeCountryStats) return;
 
-            foreach (var country in snap.Countries)
+            // keeps running: a country uploaded (or replaced) later gets its stats too
+            var failed = new Dictionary<string, int>();
+            while (!stop.IsCancellationRequested)
             {
-                if (_stats.Has(country.Id)) continue;
-                while (!_db.IsIdle) await Task.Delay(TimeSpan.FromSeconds(2), stop);
-                try
+                var snap = await _catalog.GetAsync(stop);   // also triggers the periodic dataset check
+                var todo = snap.Countries.Where(c => !_stats.Has(c.StatsKey) && failed.GetValueOrDefault(c.StatsKey) < 3).ToList();
+                foreach (var country in todo)
                 {
-                    using var scope = _scopes.CreateScope();
-                    var repo = scope.ServiceProvider.GetRequiredService<IDataRepository>();
-                    _stats.Set(country.Id, await repo.ComputeCountryStatsAsync(country.Id));
+                    while (!_db.IsIdle) await Task.Delay(TimeSpan.FromSeconds(2), stop);
+                    try
+                    {
+                        using var scope = _scopes.CreateScope();
+                        var repo = scope.ServiceProvider.GetRequiredService<IDataRepository>();
+                        _stats.Set(country.StatsKey, await repo.ComputeCountryStatsAsync(country.Id));
+                    }
+                    catch (Exception e) when (!stop.IsCancellationRequested)
+                    {
+                        failed[country.StatsKey] = failed.GetValueOrDefault(country.StatsKey) + 1;
+                        _logger.LogWarning("Background stats for {Country} failed: {Msg}", country.Id, e.Message);
+                    }
                 }
-                catch (Exception e) when (!stop.IsCancellationRequested)
-                {
-                    _logger.LogWarning("Background stats for {Country} failed: {Msg}", country.Id, e.Message);
-                }
+                if (todo.Count > 0) _logger.LogInformation("Background stats ready for {N} countries", snap.Countries.Count(c => _stats.Has(c.StatsKey)));
+                await Task.Delay(TimeSpan.FromSeconds(30), stop);
             }
-            _logger.LogInformation("Background stats ready for {N} countries", snap.Countries.Count);
         }
         catch (OperationCanceledException) { }
         catch (Exception e)
